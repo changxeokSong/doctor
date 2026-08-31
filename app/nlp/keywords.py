@@ -1,12 +1,6 @@
-"""v2(학습 기반 SpanTagger) - 답변 하나당 "대표 키워드" 1개만 예측한다. 세부분류를 프리픽스로 같이
-넣어(f"{subcategory} : {answer}") 질문 맥락을 반영하므로, v4(kiwi 형태소분석)와 달리 "아프다"/"오다"
-같은 질문에 이미 내포된 일반 서술어를 걸러내고 "무릎"처럼 실제 정보량이 있는 span만 고른다
-(키워드_선정기준 시트의 "일반 서술어 지양" 원칙을 학습으로 재현).
-
-2026-08-19: 2026-07-25(ISSUE-62)에 삭제됐던 app/nlp/keywords.py(v1~v3+hybrid 전체)를 이 프로젝트가
-git 저장소가 아니라 커밋 이력으로 복원할 수 없어서, 그중 v2 경로만 다시 작성함
-(원본은 backups/code_20260725_keyword_v1v2v3hybrid_removed/keywords.py 참고 - v1/v3/hybrid는
-아직 포함 안 함, 필요해지면 그 백업에서 추가 이식)."""
+"""학습 기반 SpanTagger - 답변 하나당 "대표 키워드" 1개만 예측한다. 세부분류를 프리픽스로 같이
+넣어(f"{subcategory} : {answer}") 질문 맥락을 반영해서, "아프다"/"오다" 같은 일반 서술어를 걸러내고
+"무릎"처럼 실제 정보량이 있는 span만 고른다."""
 import os
 import threading
 from functools import lru_cache
@@ -19,7 +13,7 @@ from app.config import KEYWORD_MODEL_DIR, KEYWORD_MAX_LENGTH
 from app.device import DEVICE
 from app.nlp.morphology import strip_trailing_particle, strip_filler_adverbs
 
-# 동시 요청이 콜드 로딩을 동시에 트리거하는 레이스를 막는다(app/models/generator.py의 ISSUE-52와 같은 이유).
+# 동시 요청이 콜드 로딩을 동시에 트리거하는 레이스를 막는다.
 _load_lock = threading.Lock()
 
 
@@ -67,7 +61,6 @@ def load_keyword_model():
         kw_model.eval()
         kw_model.to(DEVICE)
         if DEVICE.type == "cuda":
-            # classifier.py와 같은 이유 - 공유 GPU 메모리 절약용, 추론 전용이라 정확도 손실 없음.
             kw_model.half()
         return kw_model, tok
 

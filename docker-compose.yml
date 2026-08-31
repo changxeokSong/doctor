@@ -6,43 +6,24 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 모델 체크포인트·임베딩 캐시·코퍼스 엑셀·로그는 이미지에 안 굽고 호스트에서 그대로 마운트.
-      # 서버 쪽에 이 폴더/파일들만 복사해두면 이미지 재빌드 없이 그대로 돌아간다.
+      # 모델·캐시·코퍼스·로그는 이미지에 안 굽고 호스트에서 마운트 - 재빌드 없이 갱신 가능.
       - ./models:/srv/models
       - ./cache:/srv/cache
-      # 2026-08-10: HuggingFace 허브 다운로드 캐시(임베딩 모델 10종 등)를 호스트에 영구 마운트 —
-      # 안 하면 컨테이너를 내렸다 올릴 때마다 매번 재다운로드된다(DGX Spark 첫 배포·속도 벤치마크
-      # 때 특히 아까움). jungwoo와 같은 경로를 공유해서 겹치는 모델(ko-sroberta 등)은 한 번만 받는다.
       - ./cache/huggingface:/root/.cache/huggingface
       - ./logs:/srv/logs
       - ./backups:/srv/backups
-      # 2026-08-31: 저장소 루트가 xlsx로 지저분해서 corpus/ 밑으로 모음 - app/config.py의
-      # CORPUS_EXCEL/CLASSIFIER_TRAIN_EXCEL/GLOSS_EXCEL도 같이 corpus/ 접두어로 바꿨다. 이 3개는
-      # git에 포함돼 있어(용량 작음) git clone만 하면 이미 존재한다 - models/처럼 별도 복사가 필요없다.
       - ./corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx:/srv/corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx
       - ./corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx:/srv/corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx
       - ./corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx:/srv/corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx
-      # 2026-07-27: 코드도 마운트해서 재빌드 없이 바로 반영되게 함 — runserver가 이미 파일 변경을
-      # 감지해서 자동 재시작(StatReloader)하므로, 마운트만으로 hot-reload가 된다. requirements.txt
-      # 변경(새 패키지 추가)은 마운트로 안 되고 여전히 재빌드가 필요하다.
+      # 코드도 마운트 - runserver의 StatReloader가 변경을 감지해 재빌드 없이 hot-reload된다.
       - ./app:/srv/app
       - ./backend:/srv/backend
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    # 2026-08-10(ISSUE-93): PyTorch/transformers가 가끔 /dev/shm(도커 기본 64MB)을 필요로 해서
-    # 넉넉히 늘려둔다. -m(메모리 제한)이나 --ipc=host는 일부러 안 씀 — -m은 기본이 이미 무제한이라
-    # 128g로 못박아도 얻는 게 없고, --ipc=host는 컨테이너 간 텐서를 IPC로 공유하는 서빙 구조(예:
-    # vLLM 멀티프로세스)에서나 의미가 있는데 backend·jungwoo는 각자 독립적으로 모델을 로드해서
-    # 그런 공유가 없다 — 격리만 느슨해지고 실익이 없다.
-    shm_size: '2g'
-    # GPU 전달 (Docker Compose v2 + nvidia-container-toolkit 설치된 호스트 기준).
-    # 2026-08-10: DGX Spark(GB10 Grace Blackwell)로 이전 — Grace(CPU)와 Blackwell(GPU)이
-    # 카드 두 장이 아니라 하나의 SoC로 합쳐진 단일칩이라 물리 GPU가 1장뿐이다(nvidia-smi에도
-    # GPU 0 하나만 표시됨). 예전에 backend=0번 카드/jungwoo=1번 카드로 물리 분리했던 방식은
-    # 카드가 1장뿐이라 더 이상 성립하지 않는다 — count: 1로 "GPU가 있으면 붙인다"만 지정하고
-    # 존재하지 않는 인덱스를 가리키다 컨테이너가 못 뜨는 일이 없게 한다.
-    # 구버전 docker-compose(v1)라면 이 블록 대신 최상위에 `runtime: nvidia`를 쓴다.
+    shm_size: '2g'  # PyTorch/transformers가 도커 기본 /dev/shm(64MB)로는 부족할 수 있음
+    # GPU 물리 1장(SoC 통합) 전제 - count:1로 "있으면 붙인다"만 지정해 없는 인덱스를 안 가리키게 함.
+    # 구버전 docker-compose(v1)는 이 블록 대신 최상위에 `runtime: nvidia`.
     deploy:
       resources:
         reservations:
@@ -56,17 +37,10 @@ services:
     build:
       context: .
       dockerfile: jungwoo/Dockerfile
-    # 외부 포트 없음 — nginx(frontend)가 내부 도커 네트워크로만 /jungwoo/ 프록시.
-    # 코드·의존성은 메인 backend와 완전히 분리된 별도 컨테이너.
-    # 2026-08-10: DGX Spark는 GPU가 물리적으로 1장뿐인 단일칩(GB10)이라 2026-07-27에 하던
-    # 카드 분리(backend=0/jungwoo=1)가 불가능하다 — backend와 같은 GPU 0, 같은 128GB 통합
-    # 메모리 풀을 공유한다. VRAM을 나눠 쓰던 예전 구조와 달리 이제 OOM 위험을 코드/운영으로
-    # 관리해야 한다(동시에 무거운 모델을 여러 개 올리지 않기 등).
+    # 외부 포트 없음 - nginx(frontend)가 내부 네트워크로만 /jungwoo/ 프록시. backend와 별개 컨테이너지만
+    # GPU는 물리 1장을 공유(동시에 무거운 모델을 여러 개 올리면 OOM 위험).
     volumes:
-      # app.py 코드 마운트 — Streamlit은 파일 변경을 자체 감지해서(브라우저에 "rerun" 안내) 재빌드
-      # 없이 반영된다. requirements.txt 변경(새 패키지)은 여전히 재빌드 필요.
-      - ./jungwoo:/srv
-      # backend와 동일한 HF 캐시 공유 — 이유는 backend 서비스 쪽 주석 참고.
+      - ./jungwoo:/srv  # Streamlit이 파일 변경을 자체 감지해 재빌드 없이 반영
       - ./cache/huggingface:/root/.cache/huggingface
     environment:
       - NVIDIA_VISIBLE_DEVICES=0

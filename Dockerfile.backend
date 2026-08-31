@@ -1,11 +1,6 @@
-# Django + app/(분류·검색·생성·키워드추출·표제어매핑) GPU 백엔드.
-# 2026-08-10: NVIDIA DGX Spark(GB10 Grace Blackwell 슈퍼칩)용으로 베이스 이미지 교체.
-# GB10은 CPU(Grace, ARM)와 GPU(Blackwell, compute capability sm_121)가 별도 카드가 아니라
-# 하나의 SoC로 합쳐진 단일칩이다 — 기존에 쓰던 pytorch/pytorch 공식 이미지는 x86_64 전용이라
-# Grace(aarch64) 위에서는 애초에 받아지지도 않는다. NGC(nvcr.io)의 PyTorch 컨테이너는 arm64/sbsa
-# 빌드를 제공하고 Blackwell(sm_121) 커널까지 포함된 CUDA 13 기반 torch가 이미 들어있어 이걸 쓴다
-# (일반 pip torch/torchvision wheel은 aarch64+sm_121 조합을 아직 지원하지 않아 CPU 전용으로
-# 깔릴 위험이 있다 — requirements.txt에 torch를 넣지 않는 이유도 동일).
+# Django + app/(분류·검색·키워드추출·표제어매핑) GPU 백엔드.
+# NVIDIA DGX Spark(GB10, arm64/sm_121) 전용 - NGC 공식 이미지가 arm64+Blackwell 커널 포함 torch를
+# 이미 갖고 있어 이걸 쓴다(일반 pip torch wheel은 이 조합을 지원 안 함, requirements.txt에 torch 없음).
 FROM nvcr.io/nvidia/pytorch:25.11-py3
 
 WORKDIR /srv
@@ -16,25 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# 2026-08-10(ISSUE-93): --no-cache-dir → BuildKit 캐시 마운트로 교체. requirements.txt를 한 글자만
-# 바꿔도 이 레이어 전체가 무효화돼 모든 패키지를 처음부터 다시 받는데, --no-cache-dir이면 pip 자체
-# 다운로드 캐시도 없어서 매번 100% 재다운로드였다 — arm64라 일부 패키지가 소스 빌드까지 걸리는 걸
-# 감안하면 특히 느림. 캐시 마운트는 호스트에 pip 다운로드 캐시를 남겨서, 다음 빌드부터는 이미 받은
-# 패키지를 재다운로드 안 한다(이미지 자체 크기에는 안 들어감 — 빌드 중에만 마운트되는 별도 캐시).
-# docker compose v2는 기본적으로 BuildKit을 쓰므로 별도 설정 없이 바로 동작한다.
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
-# 순수 로직(app/)과 API(backend/)만 이미지에 포함한다.
-# 모델 체크포인트(models/, 수십 GB)·임베딩 캐시(cache/)·코퍼스 엑셀·로그·백업은
-# 이미지에 안 굽고 docker-compose.yml에서 볼륨/바인드 마운트로 넣는다 — 이미지 크기를
-# 작게 유지하고, 데이터를 바꿔도 재빌드 없이 바로 반영되게 하기 위함.
+# 모델·캐시·코퍼스·로그는 이미지에 안 굽고 docker-compose.yml에서 마운트(이미지 크기 최소화).
 COPY app/ ./app/
 COPY backend/ ./backend/
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-# config.py의 상대경로("./models/...", 엑셀 파일명)가 저장소 루트(=/srv) 기준이라
-# CWD를 /srv로 유지한 채 backend/manage.py를 경로로 지정해서 실행해야 한다
-# (backend/ 안으로 cd하면 상대경로가 깨진다 — 로컬 개발 환경과 동일한 방식).
+# config.py의 상대경로가 저장소 루트(=/srv) 기준이라 CWD를 /srv로 유지해야 한다.
 CMD ["python", "backend/manage.py", "runserver", "0.0.0.0:8000"]

@@ -1,22 +1,13 @@
 #!/usr/bin/env bash
-# 일반 x86_64 서버(NVIDIA GPU 2장) 전용 배포 스크립트 — backend=GPU 0 / jungwoo=GPU 1로 물리 분리
-# (GPU가 1장뿐인 DGX Spark 통합 SoC와 달리 카드 2장을 나눠 쓴다, docker-compose.x86-2gpu.yml 참고).
-# 서버에 이 저장소 폴더를 통째로 복사한 뒤 './deploy-x86-2gpu.sh' 한 번만 실행하면 빌드+기동까지 끝난다.
-# 전제조건(서버에 미리 설치돼 있어야 함):
-#   - Docker Engine + Docker Compose plugin
-#   - NVIDIA 드라이버 + nvidia-container-toolkit
-#     (설치 확인: `docker run --rm --gpus all nvidia/cuda:12.1.1-runtime-ubuntu22.04 nvidia-smi`가 성공해야 함)
-#
-# GPU가 1장뿐이거나 DGX Spark(arm64/Grace-Blackwell)라면 이 스크립트가 아니라 ./deploy-dgxspark.sh를 쓸 것.
+# 일반 x86_64 + GPU 2장 서버 전용 - backend=GPU 0 / jungwoo=GPU 1로 물리 분리(docker-compose.x86-2gpu.yml).
+# 전제조건: Docker Engine + Compose plugin, NVIDIA 드라이버 + nvidia-container-toolkit.
+# GPU가 1장뿐이거나 DGX Spark라면 이 스크립트가 아니라 ./deploy-dgxspark.sh를 쓸 것.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 compose_files=(-f docker-compose.yml -f docker-compose.x86-2gpu.yml)
 
 echo "=== 1. 필수 파일 확인 ==="
-# corpus/의 xlsx 3개와 jungwoo/ 전체는 git에 포함돼 있어 git clone만 하면 이미 존재한다(2026-08-31부로
-# 루트에 흩어져 있던 xlsx를 corpus/로 모으고 소스도 git 추적 대상이 됨) - 그래서 별도 복사가 필요한 건
-# git에 못 올리는 모델 가중치(models/, 100MB 초과) 뿐이다. cache/는 없어도 첫 요청 때 자동 생성된다
-# (아래에서 폴더만 미리 만들어둠).
+# corpus/·jungwoo/는 git 포함이라 clone만 하면 존재 - 별도 복사가 필요한 건 models/(git 미포함)뿐.
 missing=0
 for f in \
   "corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx" \

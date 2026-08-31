@@ -1,9 +1,7 @@
 """수어 표제어(Gloss) 사전 로드 + 검색.
-표제어 임베딩은 행(Gloss_Name 전체, 동의어 콤마로 결합된 문자열) 단위가 아니라 '동의어 단위'로 임베딩한다 -
-전체를 통째로 임베딩하면 "질환"처럼 정확한 단어가 들어있어도 나머지 동의어들 때문에 흐려져 유사도가
-오히려 낮게 나오는 문제가 실측으로 확인됐다 (예: "질환" 쿼리 -> 정확일치 행이 3760개 중 10위, 0.70,
-"몸살" 등 무관한 단어보다 낮음). 동의어 단위로 쪼개 임베딩하고, 검색 시 같은 표제어(행)끼리는
-최댓값을 취해 순위를 매기면 정확일치가 항상 1위(유사도 1.0)로 나온다."""
+표제어 임베딩은 행(Gloss_Name 전체, 동의어 콤마로 결합된 문자열) 단위가 아니라 '동의어 단위'로
+임베딩한다 - 행 전체를 통째로 임베딩하면 정확한 단어가 들어있어도 나머지 동의어들 때문에 유사도가
+흐려진다. 동의어 단위로 쪼개고 검색 시 같은 행끼리 최댓값을 취하면 정확일치가 항상 1위로 나온다."""
 import os
 from functools import lru_cache
 
@@ -111,11 +109,9 @@ def gloss_lookup(keyword: str, top_k: int = GLOSS_TOP_K, model_name: str = EMB_M
 
 
 def gloss_lookup_batch(keywords: list, top_k: int = GLOSS_TOP_K, model_name: str = EMB_MODEL_NAME):
-    """gloss_lookup의 배치판 — 키워드 여러 개를 embedder.encode() 한 번으로 같이 인코딩한다.
-    (한 파이프라인 요청에 답변 후보가 여러 개고 후보마다 키워드가 여럿이면, 키워드 개수만큼
-    encode()를 따로따로 호출하는 게 실측으로 확인된 지연시간의 대부분을 차지했다 — SentenceTransformer는
-    호출 1회당 고정 오버헤드가 있어서 작은 입력을 여러 번 나눠 부르는 것보다 한 번에 배치로 부르는 게
-    훨씬 빠르다.) 반환: [(exact_hit, hits), ...] — keywords와 같은 순서."""
+    """gloss_lookup의 배치판 — 키워드 여러 개를 embedder.encode() 한 번으로 같이 인코딩한다
+    (SentenceTransformer는 호출 1회당 고정 오버헤드가 있어 배치로 부르는 게 훨씬 빠르다).
+    반환: [(exact_hit, hits), ...] — keywords와 같은 순서."""
     if not keywords:
         return []
     gloss_df = load_gloss_dict()

@@ -1,8 +1,5 @@
 import type { EmbeddingModelOption, PipelineResult } from '../api/types'
 
-/** 원본 코퍼스 엑셀(corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx)의 "키워드_선정기준" 시트를
- * 그대로 옮긴 것 - v2(SpanTagger) 학습 라벨(대표 환자키워드)을 사람이 고를 때 쓴 실제 원칙이다
- * (2026-08-19, 사용자가 "엑셀에 있는 기준을 화면에서도 보이게" 요청).*/
 const KEYWORD_SELECTION_PRINCIPLES = [
   { title: '핵심 원칙', desc: '답변 문장 안 실제 단어·구를 그대로 선택', example: '앉아 있으면 더 아픕니다. → 앉아 있으면' },
   { title: '일반 서술어 지양', desc: "'아픕니다/있습니다' 단독 선택 지양 — 자세·부위·강도·상태·동작 우선", example: '걸으면 더 아파요. → 걸으면' },
@@ -10,14 +7,6 @@ const KEYWORD_SELECTION_PRINCIPLES = [
   { title: '예/아니오 문항', desc: '실제 답변의 판단어·구체 상태어 선택', example: '아니요, 저림은 없어요. → 없어요' },
 ]
 
-/** 조윤기 팀 데모(163.239.25.74:8777, 실제 소스는 medical_qna_llm/gloss-recommender/public/)의
- * "분석 페이지"(질문분류 근거 · 표제어 생성 경로 · 답변 pool · latency breakdown을 한눈에 보여주는
- * 디버그 화면)를 그대로 참고해서 만들었다 - 카드마다 title(.card-title) + 내용(.kv/.field-grid) +
- * 설명(.card-note) 구조, 새 백엔드 로직 없이 이미 파이프라인 응답에 있는 값만 다시 정리해서
- * 보여준다(2026-08-19). 저쪽 5번 "실행 설정"(Provider/Model/Endpoint) 자리에 저희는 임베딩
- * 모델·유사도 임계값 설정을 넣었다(2026-08-25, "UI/UX 완전 똑같이" 요청 - 기존 왼쪽 사이드바에
- * 있던 설정을 여기로 옮김). 저쪽처럼 의미 부류 분류나 LLM 답변생성은 저희 아키텍처에 없어서 그
- * 항목은 넣지 않았다. */
 function Card({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">

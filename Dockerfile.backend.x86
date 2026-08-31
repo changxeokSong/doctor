@@ -1,13 +1,6 @@
-# Django + app/(분류·검색·생성·키워드추출·표제어매핑) GPU 백엔드 — 일반 x86_64 서버(카드 2장, 예: RTX/A6000
-# 등)용 변형. Dockerfile.backend는 2026-08-10부로 DGX Spark(GB10 Grace Blackwell, arm64/sm_121) 전용
-# NGC 이미지로 바뀌어서(그 파일 주석 참고) 일반 x86_64 + 표준 NVIDIA GPU 서버에서는 못 쓴다 — 이
-# 파일은 그 이전에 실제로 쓰던 x86_64 구성(backups/infra_20260810_before_dgxspark_gb10/ 참고)을
-# 되살려서 필요한 개선(BuildKit pip 캐시)만 최신 Dockerfile.backend에서 가져왔다.
-# 베이스 이미지에 이미 torch+CUDA가 맞춰져 있어 CUDA 툴킷을 따로 설치할 필요가 없다 —
-# requirements.txt에 torch를 안 넣는 이유도 동일(재설치하면 인덱스가 달라 CPU 전용 wheel로 덮어쓸 위험).
-# 2026-08-19: 배포 서버(GTX 1080Ti, mmlab-GTX1080Ti-orange) 드라이버가 CUDA 12.4을 못 받아서 12.1로
-# 낮췄다 - Docker Hub에 torch 2.6.0의 cuda12.1 이미지 자체가 없어서(2.5.x까지만 cuda12.1 빌드 제공,
-# https://hub.docker.com/r/pytorch/pytorch/tags 확인) torch 버전도 2.5.1로 같이 내렸다.
+# Django + app/ GPU 백엔드 - 일반 x86_64 + 표준 NVIDIA GPU 서버용 (Dockerfile.backend는 DGX Spark
+# arm64 전용 NGC 이미지라 여기선 못 씀). 베이스 이미지에 torch+CUDA가 이미 맞춰져 있어
+# requirements.txt에 torch를 안 넣는다(재설치 시 CPU 전용 wheel로 덮어쓸 위험).
 FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
 
 WORKDIR /srv
@@ -20,17 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
-# 순수 로직(app/)과 API(backend/)만 이미지에 포함한다.
-# 모델 체크포인트(models/, 수십 GB)·임베딩 캐시(cache/)·코퍼스 엑셀·로그·백업은
-# 이미지에 안 굽고 docker-compose.yml에서 볼륨/바인드 마운트로 넣는다 — 이미지 크기를
-# 작게 유지하고, 데이터를 바꿔도 재빌드 없이 바로 반영되게 하기 위함.
+# 모델·캐시·코퍼스·로그는 이미지에 안 굽고 docker-compose.yml에서 마운트(이미지 크기 최소화).
 COPY app/ ./app/
 COPY backend/ ./backend/
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-# config.py의 상대경로("./models/...", 엑셀 파일명)가 저장소 루트(=/srv) 기준이라
-# CWD를 /srv로 유지한 채 backend/manage.py를 경로로 지정해서 실행해야 한다
-# (backend/ 안으로 cd하면 상대경로가 깨진다 — 로컬 개발 환경과 동일한 방식).
+# config.py의 상대경로가 저장소 루트(=/srv) 기준이라 CWD를 /srv로 유지해야 한다.
 CMD ["python", "backend/manage.py", "runserver", "0.0.0.0:8000"]

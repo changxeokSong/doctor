@@ -17,8 +17,7 @@ from app.retrieval.gloss import (
 from app.retrieval.retriever import retrieve_answer, load_corpus, ground_truth_labels
 from app.stats import compute_dataset_stats
 
-# lru_cache로 감싼 모델/리소스 로더들 - .cache_info().misses가 늘었으면 이번 요청에서 뭔가
-# 새로 로드됐다는 뜻이라, "이번 응답에 모델 로딩 시간이 포함됐는지"를 판단하는 데 쓴다.
+# cache_info().misses 증가 여부로 이번 요청에 콜드스타트(모델 로딩)가 포함됐는지 판단한다.
 _LOADERS = [
     _load_classifier_model, _stage_to_subcategories, load_embedder,
     load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
@@ -55,11 +54,8 @@ def retrieve(question: str, subcategories, top_k: int, max_examples: int, emb_mo
 
 
 def keywords(subcategory: str, answer: str) -> dict:
-    """입력(세부분류, 환자 답변) -> 출력(대표 키워드 1개 + 신뢰도)만 반환하는 단순 계약.
-    v4(kiwi 형태소분석, 답변 내용어 전체를 다 뽑던 방식)는 2026-08-19(진하형 피드백)에 완전히 뺐다 -
-    "무릎이 아파서 왔어요"에 무릎/아프다/오다가 다 나오면 후속 모듈이 모든 경우의 수를 다 고려해야
-    해서 비효율적이라는 지적. SpanTagger(v2)가 세부분류 맥락을 반영해 무릎처럼 정보량 있는 표현 하나만
-    고른다."""
+    """입력(세부분류, 환자 답변) -> 출력(대표 키워드 1개 + 신뢰도). SpanTagger(v2)가 세부분류
+    맥락을 반영해 정보량 있는 표현 하나만 고른다(형태소분석으로 내용어 전체를 뽑는 방식은 미사용)."""
     keyword, confidence = extract_keyword_learned(subcategory, answer)
     return {"keyword": keyword, "confidence": confidence}
 
@@ -85,27 +81,16 @@ def gloss(keywords, top_k: int, emb_model=None) -> dict:
     }
 
 
-# 집계 표(recommended_glosses)는 컷 없이 사전 전체(~654개)를 스코어순으로 다 보여준다(2026-08-19,
-# 사용자가 직접 순위를 보고 판단하길 원함 — "아침에 일어날 때"처럼 긴 조건절 키워드에서 SAP-BERT-Ko-En이
-# 완전 무관한 단어를 고스코어로 내는 걸 한 번 확인했지만, 순위 컬럼을 붙여서 사용자가 스스로 거르게
-# 한다). 카드별 "표현 가능한 글로스 없음" 판정에는 여전히 이 고정값을 쓴다(그 답변 자체 하나에 대한
-# 판단이라 분포 계산이 무의미함). "근거(evidence)로 인정할지"는 아래 _dynamic_evidence_min_score가
-# 정하는 동적 값을 쓴다(2026-08-26, 사용자 요청).
+# recommended_glosses는 컷 없이 사전 전체를 스코어순으로 다 반환 - 사용자가 순위를 보고 직접 판단.
+# "표현 가능한 글로스 없음" 판정(카드 단위)에만 쓰는 고정 임계값 - "근거로 인정"은 동적 값(아래) 사용.
 RECOMMENDED_GLOSS_MIN_SCORE = 0.5
 
-
-EVIDENCE_TOP_PERCENTILE = 0.15  # 상위 15%만 "근거 있음"으로 인정한다(2026-08-26 - 30%로 한 번
-# 올려봤다가 표제어가 202개까지 늘어 다시 노이즈가 는 걸 보고 15%로 되돌림).
+EVIDENCE_TOP_PERCENTILE = 0.15  # 상위 15%만 "근거 있음"으로 인정 (30%는 노이즈가 많아 되돌림)
 
 
-# 세부분류마다 코퍼스 전체 답변으로 어떤 Gloss_Category가 실제로 많이 매칭되는지 배치 집계해본
-# 결과(2026-08-26, scripts/analysis/subcategory_gloss_category_stats_20260826.py,
-# reports/subcategory_gloss_category_stats_20260826.json)를 바탕으로, 뜻이 실제로 통하는 것만
-# 골라 넣었다. 38개 세부분류 전부에 기계적으로 적용하지 않은 이유: "일상생활 수어 > 개념 > 시간"
-# 카테고리(시간부사, "어제"/"지금" 등)가 시간과 무관한 세부분류(예: identity, medication_name)
-# 에서도 1위로 나오는 노이즈가 확인됐다 - 흔한 시간부사가 임베딩 유사도상 이것저것에 두루 걸리는
-# 현상으로 보이며, 진짜 신호가 아니다. 여기 있는 항목들은 그 노이즈를 걸러내고 카테고리가 세부분류
-# 의미와 실제로 맞아떨어지는 것만 수동으로 확인해서 넣었다.
+# 세부분류별 실제 매칭 빈도가 높은 Gloss_Category 배치 집계 결과 중, 의미가 맞는 것만 수동 선별.
+# 전체 세부분류에 기계적으로 적용하지 않는 이유: 흔한 시간부사 등이 무관한 세부분류에서도
+# 임베딩 유사도상 우연히 1위로 잡히는 노이즈가 있어, 의미가 실제로 맞아떨어지는 것만 넣었다.
 SUBCATEGORY_CATEGORY_PRIORITY: dict[str, set[str]] = {
     "location": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
     "side": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
@@ -118,15 +103,8 @@ SUBCATEGORY_CATEGORY_PRIORITY: dict[str, set[str]] = {
 }
 
 
-# 카테고리보다 한 단계 더 좁힌 표제어 단위 가산점(2026-08-26, 사용자 요청 - 카테고리 뭉치 말고
-# "실제로 이 세부분류에서 많이 나온 표제어" 개별 단위로도 반영해달라고 함). 위 배치 집계의
-# top_glosses에서 뜻이 확실히 맞는 것만 수동으로 골랐다 - 카테고리 필터만으로는 못 거르는
-# 노이즈가 있었다: 예를 들어 "남쪽,남,따뜻하다,포근하다"(1722)는 "개념 > 위치 및 방향" 카테고리라
-# location에서 카테고리 가산점을 받지만, 실제로는 "어디가 아프세요"와 의미상 무관한 임베딩
-# 우연 매칭이라 여기(표제어 목록)엔 안 넣었다. "여덟,팔"(11419)도 마찬가지로 "팔"(arm)과
-# "여덟"(eight)이 같은 표기라 location에서 우연히 잡히지만, pain_score(몇 점이세요 - 숫자
-# 답변)에서는 진짜로 맞는 표제어라 그쪽에만 넣었다. 애매한 것들(예: quality의 "맵다",
-# "위험,험하다")은 제 판단으로 넣지 않고 뺐다 - 필요하면 위 JSON 보고 나중에 추가.
+# 카테고리보다 한 단계 더 좁힌 표제어 단위 가산점 - 배치 집계에서 의미가 확실히 맞는 것만 수동 선별
+# (카테고리 필터만으로는 못 거르는 우연한 임베딩 매칭이 있어 개별 표제어 단위로 한 번 더 걸렀다).
 SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
     "location": {944, 4302, 537, 12028, 7364, 5468, 6864},  # 허리/팔꿈치/팔/엉덩이/다리/목/등
     "side": {6036, 12035},  # 오른쪽/왼쪽
@@ -140,19 +118,9 @@ SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
 
 
 def _dynamic_evidence_min_score(agg: dict) -> float:
-    """근거 인정 기준을 고정값 대신 이번 요청의 점수 분포로 정한다 - 질문마다 임베딩 유사도 분포
-    자체가 다를 수 있어서(예: 흔한 단어가 많이 섞인 답변은 전체적으로 점수가 낮게 나옴), 고정
-    0.5보다 "이번 요청 기준으로 확실히 높은 축"을 근거로 인정하는 게 더 안정적이다(2026-08-26,
-    사용자 요청 - "평균 임계값 확인해서 동적으로 정할 수 있냐").
-
-    처음엔 평균+표준편차로 계산했는데(mean+stdev), 사용자가 "이게 좋은 기준인지 모르겠다"고
-    재고해서 실측 비교함: 실제 데이터(648개 점수, 평균 0.505·표준편차 0.061)로는 mean+stdev가
-    상위 14%(92/648)를 통과시켰다 - 나쁘지 않지만, 표준편차가 질문마다 얼마나 넓거나 좁을지
-    예측할 수 없어서 "몇 %가 통과할지"가 질문마다 들쭉날쭉해질 수 있다는 게 문제였다. 그래서
-    상위 퍼센타일(EVIDENCE_TOP_PERCENTILE) 방식으로 바꿨다 - "항상 상위 15%만 보여준다"가
-    더 예측 가능하고 설명하기도 쉽다(2026-08-26). 정확일치는 이미 1.0 근처에 몰려 분포를
-    왜곡하니 제외하고 계산한다. 위아래로는 [0.5, 0.9] 범위로 잘라서 극단값(전부 다 뜨거나
-    하나도 안 뜨는 경우)을 막는다."""
+    """근거 인정 기준을 고정값 대신 이번 요청의 점수 분포(정확일치 제외, 상위 EVIDENCE_TOP_PERCENTILE)로
+    정한다 - 질문마다 임베딩 유사도 분포가 달라 고정 임계값보다 안정적이다. [0.5, 0.9]로 범위를
+    제한해 극단값(전부 통과/전부 탈락)을 막는다."""
     scores = sorted((r["score"] for r in agg.values() if not r["is_exact"]), reverse=True)
     if not scores:
         return RECOMMENDED_GLOSS_MIN_SCORE
@@ -162,21 +130,12 @@ def _dynamic_evidence_min_score(agg: dict) -> float:
 
 
 def _build_candidates(subcategory: str, answers_with_source: list, model_name: str):
-    """답변 후보 여러 개의 키워드+표제어 매핑을 한 번에 만든다. 답변마다 대표 키워드 학습 모델
-    (SpanTagger, subcategory 맥락 반영, 질문에 이미 내포된 서술어는 제외) 하나만 낸다 —
-    2026-08-19(진하형 피드백)에 형태소분석(kiwi, 내용어 전체) 방식과 나란히 비교해본 뒤 이 방식만으로
-    충분하다고 판단해 형태소분석 폴백까지 완전히 뺐다. 빈 문자열(초단문 답변 등,
-    try_v2_keyword_extractor_20260819.py 오답 샘플 참고)이면 그 답변엔 키워드가 없는 채로 나간다.
-
-    표제어는 두 층위로 반환한다:
-    (1) 답변 카드별 - 정확일치 여부 + "표현 가능한 글로스 없음" 판정만. 유사도 랭킹 전체(654개)는
-        카드를 펼칠 때 프론트가 /api/gloss/로 따로 지연 요청한다(답변마다 미리 다 채워 응답이
-        ~900KB까지 커져 서버 디스크를 채운 장애 이후 변경, 2026-08-19).
-    (2) 표제어 중심 집계(recommended_glosses) - 답변 여러 개에 흩어진 키워드를 표제어(원문 인덱스)
-        기준으로 합쳐서, 어느 답변의 어느 키워드가 근거인지와 함께 사전 전체(654개)를 스코어순으로
-        반환한다(진하형이 공유한 "표제어 중심 집계 + 근거 표시" 포맷 참고, 2026-08-19 — 그 포맷의
-        LLM 생성·의도 확장 부분은 뺐고, "품질 컷"도 우선 빼고 전체를 다 보여주는 쪽으로 바꿨다 —
-        사용자가 컷 없이 전체를 먼저 보길 원함)."""
+    """답변 후보 여러 개의 키워드+표제어 매핑을 한 번에 만든다. 답변마다 대표 키워드(SpanTagger,
+    subcategory 맥락 반영) 하나만 뽑는다. 표제어는 두 층위로 반환:
+    (1) 답변 카드별 - 정확일치 여부 + "표현 가능한 글로스 없음" 판정만(유사도 전체 랭킹은
+        카드 펼칠 때 /api/gloss/로 지연 요청 - 매번 전체를 채우면 응답이 너무 커짐)
+    (2) 표제어 중심 집계(recommended_glosses) - 여러 답변의 키워드를 표제어(원문 인덱스) 기준으로
+        합쳐 근거와 함께 사전 전체를 스코어순으로 반환(컷 없음 - 순위는 사용자가 직접 판단)."""
     t0 = time.perf_counter()
     answers = [a for a, _ in answers_with_source]
     tagged_per_answer = []  # answer_idx -> (keyword, confidence, span) | None
@@ -202,12 +161,8 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             gloss_by_answer_idx[i] = flat_gloss_results[cursor]
             cursor += 1
 
-    # top_k가 사전 전체 크기라 모든 키워드가 모든 표제어에 대해 어떤 점수든 갖는다 - 그래서 두 번
-    # 훑는다. 1차: row별 최고점(score)만 먼저 확정 - 이 최고점 분포로 "근거로 인정할 기준"을 동적으로
-    # 정한다(_dynamic_evidence_min_score). 2차: 그 기준을 넘는 항목만 근거(evidence)로 기록한다 -
-    # 안 그러면 무관한 답변까지 "근거"로 뜬다(예: "허리"가 "심장" 표제어의 근거로 딸려오는 식,
-    # 2026-08-19 확인). 두 패스로 나눈 이유는 "이번 요청 점수 분포"를 알아야 기준을 정할 수 있는데,
-    # 그 분포 자체가 전체 항목을 다 훑어야 나오기 때문(2026-08-26).
+    # 두 패스로 나눈 이유: 1차로 row별 최고점을 먼저 확정해야 그 분포로 근거 인정 기준
+    # (_dynamic_evidence_min_score)을 동적으로 정할 수 있고, 2차에서 그 기준을 넘는 것만 근거로 기록한다.
     agg: dict[int, dict] = {}  # origin_number -> {name, origin_number, score, is_exact}
     for gloss_pair in gloss_by_answer_idx.values():
         exact_hit, hits = gloss_pair
@@ -242,19 +197,11 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             evidence = {"answer_index": i, "keyword": kw, "score": score}
             if evidence not in row["evidence"]:
                 row["evidence"].append(evidence)
-    # 근거 목록 안에서도 가장 유사도 높은(가까운) 답변이 맨 위로 오도록 정렬한다(2026-08-19, 사용자
-    # 요청 - 표에서 "답변2, 답변3, 답변4..." 처리 순서가 아니라 실제로 제일 가까운 게 먼저 보이길 원함).
     for row in agg.values():
         row["evidence"].sort(key=lambda e: -e["score"])
-    # 정렬은 여전히 점수가 1순위다 - 다만 "사실상 같은 점수"의 기준을 두 단계로 나눴다: 큰 틀(0.1
-    # 단위)에서 같은 구간이면 (1) 배치 집계로 확인해서 수동으로 고른 표제어 개별 목록(SUBCATEGORY_
-    # GLOSS_PRIORITY, 더 좁고 정확함), (2) 그걸로 안 잡히면 카테고리 단위(SUBCATEGORY_CATEGORY_
-    # PRIORITY, 더 넓고 코퍼스에 없던 새 답변에도 일반화됨)를 앞세우고, 그다음에야 0.01 단위
-    # 미세 순위 + (3) 명사(무엇이 - 신체부위 등) 우선을 적용한다(2026-08-26, 사용자 요청 - 처음엔
-    # 0.01 단위로만 동점 처리해서 우선순위 표제어가 거의 안 올라온다는 피드백을 받고, "동점" 폭을
-    # 0.1로 넓힘 - 대신 0.1 구간을 벗어날 만큼 점수 차이가 큰(예: 0.3 차이) 다른 표제어는 여전히
-    # 못 이긴다). 원점수(score)는 그대로 보여준다 - 정렬 순서만 바뀌지 화면에 찍히는 숫자는 안
-    # 건드린다. has_noun은 kiwi 품사 태그 기반이라 하드코딩 단어 목록이 아니다.
+    # 정렬 우선순위: 정확일치 > 점수(0.1 단위 구간) > 표제어 우선순위(SUBCATEGORY_GLOSS_PRIORITY) >
+    # 카테고리 우선순위(SUBCATEGORY_CATEGORY_PRIORITY) > 점수(0.01 단위) > 명사 우선(has_noun).
+    # 0.1 단위로 동점 구간을 넓게 잡아야 우선순위 표제어가 실제로 앞으로 올라온다.
     priority_glosses = SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set())
     priority_categories = SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set())
     category_by_origin = gloss_category_by_origin()
@@ -294,19 +241,10 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
 
 
 def run_pipeline(question: str, emb_model, similarity_threshold: float) -> dict:
-    """demo_app.py의 메인 플로우(질문 -> 분류 -> 검색 -> 키워드 -> 표제어)를 한 번에 실행한다.
-    단계별 소요시간(ms)과, 이번 요청에서 모델을 새로 로드했는지(cold start)도 같이 반환한다 —
-    처음 실행되면 lru_cache가 비어있어서 모델 로딩 시간까지 그 단계 시간에 포함된다.
-    키워드 추출은 대표 키워드 1개(세부분류 맥락 반영, SpanTagger) — 2026-08-19 진하형 피드백으로
-    재도입, _build_candidates 참고. 표제어는 답변 카드별로는 정확일치 여부만 넣고(유사도 전체 랭킹은
-    프론트가 카드를 펼칠 때 /api/gloss/로 따로 지연 로딩, 매번 전체를 미리 계산해 넣었다가 응답이
-    커져서 서버 디스크를 채운 장애 이후 변경) + 별도로 `recommended_glosses`에 답변 전체를 표제어
-    기준으로 합친 집계(컷 없이 전체, 근거 표시)를 반환한다 — _build_candidates 참고. 검색이
-    임계값 미달이어도 KoBART 생성 폴백은 더 없다 —
-    2026-07-25(ISSUE-64)에 코드·모델 자체를 삭제했다(반복생성 등 품질 문제가 있었고, "지금 코퍼스에
-    없는 질문"이라는 사실을 정직하게 보여주는 편이 낫다는 판단). retrieval_ok가 False면 프론트가
-    "비슷한 기존 질문을 찾지 못했다"는 걸 그대로 보여준다. 답변 소스가 검색(retriever) 하나뿐이라
-    show_retrieval 같은 on/off 파라미터도 같이(ISSUE-64) 없앴다 — 항상 계산해서 보여준다."""
+    """메인 플로우(질문 -> 분류 -> 검색 -> 키워드 -> 표제어)를 한 번에 실행한다. 단계별 소요시간과
+    콜드스타트 여부(lru_cache 미스 발생 시 모델 로딩 포함)도 같이 반환한다. LLM 생성 폴백은 없다 -
+    검색이 임계값 미달이면 "비슷한 기존 질문을 찾지 못했다"는 사실을 그대로 보여준다.
+    표제어 반환 형태는 _build_candidates 참고."""
     t_start = time.perf_counter()
     misses_before = _total_cache_misses()
     model_name = _resolve_model(emb_model)
@@ -383,11 +321,8 @@ def embedding_model_options() -> dict:
 
 
 def gloss_dictionary() -> dict:
-    """표제어 사전 전체를 표(인덱스·이름·분류) + 통계로 반환한다(2026-08-26, 사용자 요청 -
-    조윤기 팀이 회의에서 "이 단어가 왜 없냐"는 질문에 대답 못한 걸 보고, 우리도 사전 전체를
-    투명하게 보여주는 페이지가 있으면 좋겠다고 판단함). 세부분류별 매핑(어느 세부분류에 어떤
-    글로스가 뜨는지)은 우리 아키텍처가 고정 매핑이 아니라 질문마다 즉석 임베딩 검색이라 이
-    함수에는 없다 - 필요해지면 별도 배치 계산으로 붙여야 한다."""
+    """표제어 사전 전체를 표(인덱스·이름·분류) + 통계로 반환한다. 세부분류별 매핑은 고정 매핑이
+    아니라 질문마다 즉석 임베딩 검색이라 여기 없다."""
     df = load_gloss_dict()
     glosses = [
         {

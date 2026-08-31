@@ -1,14 +1,9 @@
-"""문진 단계(label_stage)/세부분류(label_subcategory) 분류기 (dual-head). backbone은 하드코딩이 아니라
-models/deployed/model_final/label_maps.json의 model_name으로 결정된다(2026-07-24 기준 klue/roberta-large,
-ISSUE-40 참고 — 이전엔 base였음).
+"""문진 단계(label_stage)/세부분류(label_subcategory) 분류기 (dual-head).
+backbone은 models/deployed/model_final/label_maps.json의 model_name으로 결정된다.
 
-세부분류는 문진 단계 밑에 종속된 하위 개념이라서(예: "과거질환" 단계면 세부분류는 history 하나뿐),
-두 head를 완전히 독립적으로 그냥 argmax하면 논리적으로 말이 안 되는 조합이 나올 수 있고, 특히
-복합 질문("A일 때 아파요, 아니면 B일 때 아파요?")에서는 세부분류 확신도가 크게 흐트러지는 걸
-실측으로 확인했다(2026-07-24, "앉아 있을 때/서 있을 때" 질문에서 세부분류 확신도 20.3%까지 하락).
-그래서 예측된 1위 단계에 실제로 속하는 세부분류만 남기고 나머지는 제외한 뒤 다시 정규화한다 —
-"1단계(문진 단계)를 먼저 정하고, 그 안에서 2단계(세부분류)를 고른다"는 계층 구조를 추론 시점에
-강제하는 것. 재학습 없이 바로 적용 가능."""
+세부분류는 문진 단계에 종속된 하위 개념이라(예: "과거질환" 단계면 세부분류는 history 하나뿐)
+두 head를 독립적으로 argmax하면 논리적으로 안 맞는 조합이 나올 수 있어, 예측된 1위 단계에
+실제로 속하는 세부분류만 남기고 재정규화한다."""
 import json
 import os
 import threading
@@ -22,9 +17,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig
 from app.config import MODEL_DIR, CLASSIFIER_TRAIN_EXCEL, CLASSIFIER_TRAIN_SHEET
 from app.device import DEVICE
 
-# Django runserver의 요청별 스레드가 동시에 콜드 로딩을 트리거하면 두 스레드가 동시에 GPU에 큰 모델을
-# 올리려다 부딪힐 수 있다 — app/models/generator.py에서 이 레이스로 인한 meta tensor 크래시를 실제로
-# 재현한 뒤(ISSUE-52) 모든 GPU 모델 로더에 동일하게 락을 걸기로 했다.
+# 동시 요청이 콜드 로딩을 동시에 트리거하면 GPU 모델 로드가 레이스로 크래시할 수 있어 락을 건다.
 _load_lock = threading.Lock()
 
 
@@ -64,9 +57,7 @@ def load_model():
         model.eval()
         model.to(DEVICE)
         if DEVICE.type == "cuda":
-            # 이 GPU(6GB)는 데스크톱·Jupyter 커널과 공유돼 여유가 빠듯하다(실측: roberta-large로
-            # 교체 후 GPU 메모리 부족으로 generator가 "meta tensor" 에러를 냄, 2026-07-24). 추론
-            # 전용이라 정확도 손실 없이 메모리를 절반 가까이 줄이는 half precision으로 여유를 확보한다.
+            # 추론 전용이라 정확도 손실 없이 GPU 메모리를 절반 가까이 줄일 수 있다.
             model.half()
 
         return model, tokenizer, id2stage, id2sub, maps["max_length"]

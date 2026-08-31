@@ -1,15 +1,6 @@
 import { useState } from 'react'
 import type { RecommendedGloss } from '../api/types'
 
-/** 근거(어느 답변에서 이 키워드가 나와서 이 표제어로 이어졌는지)가 3개를 넘으면 접어두고,
- * "더보기"를 눌러야 나머지가 펼쳐진다 - 표 안에서 텍스트가 무한정 길어지는 걸 막는다.
- * 근거 인정 기준(evidenceMinScore)은 더 이상 고정값이 아니라 backend/pipeline/services.py의
- * _dynamic_evidence_min_score가 이번 요청 점수 분포로 매번 새로 계산해서 내려준다(2026-08-26,
- * 사용자 요청 - "평균 임계값 확인해서 동적으로 정할 수 있냐"). */
-
-/** 근거 문장 안에서 키워드를 찾아 <mark>로 강조한다 - 조윤기 팀 데모(163.239.25.74:8777)의
- * .evidence-sent/mark 스타일을 실제 페이지에서 computed style로 추출해 그대로 옮겼다
- * (배경 #fff3bf, radius 3px, 2026-08-25, 사용자 요청 "UI/UX 완전 똑같이"). */
 function HighlightedEvidenceSentence({ answer, keyword }: { answer: string; keyword: string }) {
   const idx = answer.indexOf(keyword)
   if (idx === -1) return <>{answer}</>
@@ -55,11 +46,7 @@ function TableEvidenceCell({ evidence, answers, evidenceMinScore }: { evidence: 
   )
 }
 
-/** 저쪽 .evidence-row(grid, 왼쪽 고정폭 표제어 + 오른쪽 문장들)를 그대로 재현. */
-/** 근거 문장은 표제어당 제일 유사도 높은 것 딱 1개만 보여준다(2026-08-26, 사용자 요청 -
- * "근거 문장 하나씩만 나오게"). evidence는 이미 백엔드에서 점수 내림차순 정렬돼 오므로
- * evidence[0]가 최선의 근거다. 나머지 근거까지 다 보고 싶으면 "전체 654개 순위 보기" 표의
- * 근거 칸에서 "더보기"로 볼 수 있다. */
+/** evidence는 백엔드에서 이미 점수 내림차순 정렬돼 오므로 evidence[0]가 최선의 근거다. */
 function EvidenceRow({ name, evidence, answers }: { name: string; evidence: RecommendedGloss['evidence']; answers: string[] }) {
   if (evidence.length === 0) return null
   const best = evidence[0]
@@ -73,17 +60,8 @@ function EvidenceRow({ name, evidence, answers }: { name: string; evidence: Reco
   )
 }
 
-/** 답변 여러 개(최대 20개)에 흩어진 대표 키워드를 표제어(원문 인덱스) 기준으로 합친 집계 -
- * 답변마다 따로 보던 걸 표제어 하나당 "어느 답변에서 나왔는지" 근거와 함께 한 표로 본다.
- * 컷 없이 사전 전체(~654개)를 스코어순으로 다 보여준다(2026-08-19, 사용자가 순위를 직접 보고
- * 판단하길 원함 - services.py의 RECOMMENDED_GLOSS_MIN_SCORE 참고). */
-
-/** 조윤기 팀 데모의 .kw/.kw.t1/.t2 색을 참고했다(2026-08-25, styles.css .kw.t1/.t2 computed
- * style에서 추출). 저쪽은 스코어가 1.0/0.8/0.5 중 하나로만 나오는 고정 단계값이라 색 경계가
- * 고정이었는데, 저희는 연속 유사도 + 동적 임계값이라 "임계값 대비 상대 위치"로 3단계를 나눈다
- * (2026-08-26, 사용자 요청 - "임계값 기준으로 색상 표시해달라"): 정확일치(진한 초록) /
- * 임계값과 1.0 사이 중간점 이상(중간 초록) / 임계값 이상 중간점 미만(연한 초록). 임계값
- * 미달은 이미 core 필터에서 아예 빠지므로 여기 안 들어온다. */
+/** 3단계: 정확일치(진한 초록) / 임계값~1.0 중간점 이상(중간 초록) / 중간점 미만(연한 초록).
+ * 임계값 미달은 core 필터에서 이미 빠지므로 여기 안 들어온다. */
 function pillTier(g: RecommendedGloss, evidenceMinScore: number): 1 | 2 | 3 {
   if (g.is_exact) return 1
   const midpoint = evidenceMinScore + (1 - evidenceMinScore) / 2
@@ -96,11 +74,7 @@ function pillClass(tier: 1 | 2 | 3): string {
   return 'bg-[#e3f5e8] text-[#14612b] border border-[#b7ebc6]'
 }
 
-/** 조윤기 팀 데모의 "핵심 표제어" 표(표제어/인덱스/스코어/의미 부류/근거 키워드와 문장) 형태 -
- * 메인 추천 화면은 알약(pill) 방식을 유지하고, 이 표 형태는 "분석 보기"(AnalysisPanel)
- * 전용으로 뺐다(2026-08-26, 사용자 요청 - "분석보기에서 그래야지, 메인은 원상 복구"). "의미
- * 부류" 칼럼은 저쪽에서 LLM이 질문마다 실시간으로 붙이는 값이라 우리 아키텍처엔 없는
- * 개념이라, 대신 우리가 실제로 가진 값인 예측 세부분류(subLabel)로 채운다. */
+/** "의미 부류" 칼럼은 우리 아키텍처에 없는 개념이라 예측 세부분류(subLabel)로 대신 채운다. */
 export function GlossDetailTable({ glosses, subLabel, answers }: { glosses: RecommendedGloss[]; subLabel: string; answers: string[] }) {
   const core = glosses.filter((g) => g.is_exact || g.evidence.length > 0)
   return (
@@ -155,14 +129,7 @@ interface RecommendedGlossesTableProps {
 }
 
 export function RecommendedGlossesTable({ glosses, matchedQuestion, answers, stageLabel, subLabel, evidenceMinScore }: RecommendedGlossesTableProps) {
-  // 유사도 중간값(evidenceMinScore~1.0의 중간점, pillTier의 tier 3 경계) 미만인 표제어는
-  // 기본적으로 접어두고 "더보기"를 눌러야 펼쳐진다 - 근거가 약한(연한 초록) 표제어까지 전부
-  // 알약으로 늘어놓으면 화면이 길어져서 진짜 강한 근거(정확일치·중간값 이상)부터 먼저 보이게
-  // 나눈다(2026-08-31, 사용자 요청). 펼침 상태는 알약 목록과 근거 문장 목록이 같이 움직인다.
-  // 다만 중간값 이상만으로는 몇 개 안 나오는 질문이 있어(예: 6개) "더보기 누르기 전에도 최소
-  // 10개는 보이게" 요청받아, 중간값 이상 개수가 10 미만이면 core(이미 점수순 정렬됨) 앞에서부터
-  // 채워 최소 MIN_VISIBLE개를 보장한다 - 중간값 이상 표제어가 10개를 넘으면 그만큼 다 보여준다
-  // (강한 근거를 굳이 접어두지 않음).
+  // 중간값 이상 표제어가 MIN_VISIBLE보다 적으면 core(점수순)에서 채워 최소 개수를 보장한다.
   const MIN_VISIBLE = 10
   const [showBelowMidpoint, setShowBelowMidpoint] = useState(false)
   if (glosses.length === 0) {

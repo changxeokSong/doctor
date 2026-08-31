@@ -25,17 +25,14 @@ class KeywordsRequestSerializer(serializers.Serializer):
 
 
 class GlossRequestSerializer(serializers.Serializer):
-    """max_value=1000 - 2026-08-19부터 프론트가 답변 카드를 펼칠 때 사전 전체(~654개) 유사도 랭킹을
-    이 엔드포인트로 지연 로딩한다(파이프라인 응답에 미리 다 채워 넣었다가 응답이 최대 ~900KB까지
-    커져 서버 디스크를 채운 장애 이후 변경, backend/pipeline/services.py의 _build_candidates 참고)."""
+    """max_value=1000 - 답변 카드를 펼칠 때 사전 전체 유사도 랭킹을 지연 로딩하는 용도."""
     keywords = serializers.ListField(child=serializers.CharField(), allow_empty=False)
     top_k = serializers.IntegerField(required=False, default=GLOSS_TOP_K, min_value=1, max_value=1000)
     emb_model = serializers.CharField(required=False, allow_null=True, default=None)
 
 
 class PipelineRequestSerializer(serializers.Serializer):
-    """gloss_top_k 없음 - 표제어 매핑은 정확일치 여부만 넣고, 유사도 전체 랭킹은 프론트가 카드를 펼칠
-    때 /api/gloss/로 따로 요청한다(services.run_pipeline/_build_candidates 참고)."""
+    """gloss_top_k 없음 - 유사도 전체 랭킹은 프론트가 카드 펼칠 때 /api/gloss/로 따로 요청한다."""
     question = serializers.CharField(allow_blank=False)
     emb_model = serializers.CharField(required=False, allow_null=True, default=None)
     similarity_threshold = serializers.FloatField(required=False, default=0.65, min_value=0.0, max_value=1.0)

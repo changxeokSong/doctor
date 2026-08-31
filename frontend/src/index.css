@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-/* 163.239.25.74:8777(조윤기 팀 데모)의 색 팔레트를 실제 페이지 computed style에서 그대로
- * 추출해 이식했다(2026-08-25, 사용자 요청 - "UI/UX 완전 똑같이"). */
 :root {
   --mh-bg: #f0f0f5;
   --mh-surface: #ffffff;

@@ -3,7 +3,7 @@ import type { EmbeddingModelOption } from '../api/types'
 interface Props {
   value: string
   onChange: (v: string) => void
-  // q가 주어지면 그 값으로 바로 실행(예시 버튼 클릭 시 state 반영을 기다리지 않고 즉시 실행하기 위함).
+  // q 있으면 그 값으로 바로 실행 (예시 버튼 클릭용)
   onSubmit: (q?: string) => void
   examples: string[]
   loading: boolean
@@ -12,13 +12,6 @@ interface Props {
   onEmbModelChange: (modelId: string) => void
 }
 
-// 163.239.25.74:8777(gloss-recommender/public/index.html)의 마크업·클래스를 그대로 옮겼다
-// (.card > .ask-input(textarea) + .ask-row > .btn + .hint + .status-line, 2026-08-25,
-// 사용자 요청 "이 코드 참고해서 아예 똑같이").
-// 2026-08-31: 임베딩 모델 선택을 "분석 보기"(AnalysisPanel "7. 실행 설정") 안에만 두었더니
-// 사용자가 못 찾음 - 질문 입력 카드에도 같은 상태(App.tsx의 embModel)를 바꾸는 축약형 선택기를
-// 둔다. AnalysisPanel 쪽은 로드 여부(✅/⏳)까지 보여주는 상세판이라 그대로 남겨둠 - 같은 state를
-// 공유하므로 둘 중 어디서 바꿔도 동기화된다.
 export function QuestionInput({ value, onChange, onSubmit, examples, loading, embOptions, embModel, onEmbModelChange }: Props) {
   return (
     <div className="card bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">

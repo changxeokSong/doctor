@@ -14,11 +14,7 @@ with warnings.catch_warnings():
 
 from kiwipiepy import Kiwi
 
-# Streamlit의 hot-reload 감시자(local_sources_watcher.py)가 매 rerun마다 sys.modules를 훑으며
-# __path__를 건드리는데, 이때 torchaudio의 지연 백엔드 디스패치가 self-warning을 던진다(우리 코드는
-# torchaudio를 직접 쓰지 않음 - torch/sentence-transformers가 끌고 들어온 간접 의존성일 뿐이라
-# 무해한 경고다). 위 with-block과 달리 이건 import 시점이 아니라 매 rerun마다 반복되므로 전역
-# 필터로 계속 억제해야 로그가 안 쌓인다.
+# Streamlit rerun마다 torchaudio의 무해한 self-warning이 반복 발생해 전역 필터로 억제.
 warnings.filterwarnings("ignore", message="Torchaudio's I/O functions now support")
 
 # ────────────────────────────────────────────────────────────
@@ -30,10 +26,8 @@ EXCEL_FILE = os.path.join(BASE_DIR, next(f for f in _files if '0528' in f))
 GLOSS_FILE = os.path.join(BASE_DIR, 'etri_glosses.csv')
 
 # ────────────────────────────────────────────────────────────
-# 선택 가능한 Q 검색 모델 목록
-# 2026-08-10(ISSUE-93): 라벨에 파라미터 수 표기 추가(HuggingFace Hub 기준 실측치) — DGX Spark
-# 이전 후 GPU 메모리 예산 확인용. 이 5종 중 SAP-BERT-Ko-En·KM-BERT·ko-sroberta는 app/config.py의
-# EMB_MODEL_OPTIONS와 겹치고(같은 가중치 재사용), MiniLM·Medical Bi-Encoder Q는 jungwoo 전용이다.
+# 선택 가능한 Q 검색 모델 목록 (SAP-BERT-Ko-En·KM-BERT·ko-sroberta는 app/config.py의
+# EMB_MODEL_OPTIONS와 가중치 공유, MiniLM·Medical Bi-Encoder Q는 jungwoo 전용)
 # ────────────────────────────────────────────────────────────
 AVAILABLE_MODELS = {
     "jhgan/ko-sroberta-multitask":                                   "Ko-SRoBERTa (기본, 한국어 STS, 약 110M)",

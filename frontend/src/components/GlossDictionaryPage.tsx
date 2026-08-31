@@ -2,11 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 
-/** 표제어 사전 전체를 표로 보여주는 페이지 - "이 단어 왜 없냐"는 질문에 링크 하나로 바로
- * 답할 수 있게 투명하게 공개한다(2026-08-26, 사용자 요청 - 조윤기 팀 회의에서 나온
- * "찍소리 못하게" 요구사항을 참고). 카테고리(Gloss_Category)별 개수 통계도 같이 보여준다.
- * 세부분류/문진단계별 매핑은 우리 아키텍처엔 고정 테이블이 없어서(질문마다 즉석 임베딩 검색)
- * 여기 없다 - 필요해지면 별도 배치 계산으로 붙여야 한다. */
+// 세부분류/문진단계별 매핑은 고정 테이블이 없어(질문마다 즉석 임베딩 검색) 여기 없음.
 export function GlossDictionaryPage() {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['gloss-dictionary'],
