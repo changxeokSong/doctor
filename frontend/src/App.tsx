@@ -133,6 +133,8 @@ function MainApp() {
               onSubmit={runPipeline}
               examples={examplesQuery.data?.examples ?? []}
               loading={pipelineMutation.isPending}
+              embOptions={embModelsQuery.data?.options ?? []}
+              embModel={embModel} onEmbModelChange={setEmbModel}
             />
 
             {pipelineMutation.isError && (

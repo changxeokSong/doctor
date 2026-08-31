@@ -1,3 +1,5 @@
+import type { EmbeddingModelOption } from '../api/types'
+
 interface Props {
   value: string
   onChange: (v: string) => void
@@ -5,12 +7,19 @@ interface Props {
   onSubmit: (q?: string) => void
   examples: string[]
   loading: boolean
+  embOptions: EmbeddingModelOption[]
+  embModel: string
+  onEmbModelChange: (modelId: string) => void
 }
 
 // 163.239.25.74:8777(gloss-recommender/public/index.html)의 마크업·클래스를 그대로 옮겼다
 // (.card > .ask-input(textarea) + .ask-row > .btn + .hint + .status-line, 2026-08-25,
 // 사용자 요청 "이 코드 참고해서 아예 똑같이").
-export function QuestionInput({ value, onChange, onSubmit, examples, loading }: Props) {
+// 2026-08-31: 임베딩 모델 선택을 "분석 보기"(AnalysisPanel "7. 실행 설정") 안에만 두었더니
+// 사용자가 못 찾음 - 질문 입력 카드에도 같은 상태(App.tsx의 embModel)를 바꾸는 축약형 선택기를
+// 둔다. AnalysisPanel 쪽은 로드 여부(✅/⏳)까지 보여주는 상세판이라 그대로 남겨둠 - 같은 state를
+// 공유하므로 둘 중 어디서 바꿔도 동기화된다.
+export function QuestionInput({ value, onChange, onSubmit, examples, loading, embOptions, embModel, onEmbModelChange }: Props) {
   return (
     <div className="card bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">
       <textarea
@@ -22,6 +31,20 @@ export function QuestionInput({ value, onChange, onSubmit, examples, loading }: 
           if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onSubmit()
         }}
       />
+      <div className="flex items-center gap-2 mt-3">
+        <label className="text-xs text-[var(--mh-muted)] font-bold shrink-0">임베딩 모델</label>
+        <select
+          className="min-w-0 flex-1 bg-white border border-[var(--mh-border)] rounded-lg text-[var(--mh-text)] px-2.5 py-1.5 text-[13px] outline-none focus:border-[var(--mh-accent)]"
+          value={embModel}
+          onChange={(e) => onEmbModelChange(e.target.value)}
+        >
+          {embOptions.map((opt) => (
+            <option key={opt.model_id} value={opt.model_id}>
+              {opt.loaded ? '✅' : '⏳'} {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="flex items-center gap-3 mt-3">
         <button
           type="button"
