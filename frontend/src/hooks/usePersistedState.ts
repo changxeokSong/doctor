@@ -2,18 +2,21 @@ import { useState } from 'react'
 
 const PREFIX = 'mh-settings:'
 
-function readStored<T>(key: string, fallback: T): T {
+function readStored<T>(key: string, fallback: T, isValid?: (v: unknown) => boolean): T {
   try {
     const raw = localStorage.getItem(PREFIX + key)
-    return raw === null ? fallback : (JSON.parse(raw) as T)
+    if (raw === null) return fallback
+    const parsed = JSON.parse(raw)  // 타입이 다른 저장값도 통과시키므로 isValid로 한 번 더 검증
+    return !isValid || isValid(parsed) ? (parsed as T) : fallback
   } catch {
     return fallback
   }
 }
 
-/** useState처럼 쓰되 localStorage에 자동 저장 — 새로고침해도 값이 유지된다. */
-export function usePersistedState<T>(key: string, fallback: T) {
-  const [value, setValue] = useState<T>(() => readStored(key, fallback))
+/** useState처럼 쓰되 localStorage에 자동 저장 — 새로고침해도 값이 유지된다.
+ * isValid를 주면 저장된 값의 타입/범위를 검증하고, 안 맞으면 fallback을 쓴다. */
+export function usePersistedState<T>(key: string, fallback: T, isValid?: (v: unknown) => boolean) {
+  const [value, setValue] = useState<T>(() => readStored(key, fallback, isValid))
 
   function set(next: T) {
     setValue(next)

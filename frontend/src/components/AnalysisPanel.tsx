@@ -1,4 +1,5 @@
 import type { EmbeddingModelOption, PipelineResult } from '../api/types'
+import { EmbModelSelect } from './EmbModelSelect'
 
 const KEYWORD_SELECTION_PRINCIPLES = [
   { title: '핵심 원칙', desc: '답변 문장 안 실제 단어·구를 그대로 선택', example: '앉아 있으면 더 아픕니다. → 앉아 있으면' },
@@ -155,18 +156,12 @@ export function AnalysisPanel({
       <Card title="7. 실행 설정" note="여기서 바꾼 설정은 다음 질문부터 그대로 적용됩니다.">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] text-[var(--mh-muted)] font-bold">임베딩 모델 (검색용)</label>
-            <select
+            <label htmlFor="analysis-emb-model-select" className="text-[11px] text-[var(--mh-muted)] font-bold">임베딩 모델 (검색용)</label>
+            <EmbModelSelect
+              id="analysis-emb-model-select"
+              embOptions={embOptions} embModel={embModel} onEmbModelChange={onEmbModelChange}
               className="w-full bg-white border border-[var(--mh-border)] rounded-lg text-[var(--mh-text)] px-2.5 py-2 text-[13px] outline-none focus:border-[var(--mh-accent)]"
-              value={embModel}
-              onChange={(e) => onEmbModelChange(e.target.value)}
-            >
-              {embOptions.map((opt) => (
-                <option key={opt.model_id} value={opt.model_id}>
-                  {opt.loaded ? '✅' : '⏳'} {opt.label}
-                </option>
-              ))}
-            </select>
+            />
             {selectedEmbOption && (
               <span className={'text-xs font-semibold ' + (selectedEmbOption.loaded ? 'text-[var(--mh-ok)]' : 'text-amber-700')}>
                 {selectedEmbOption.loaded ? '✅ 이미 로드됨' : '⏳ 처음 검색 시 로딩 시간 걸림'}

@@ -52,10 +52,12 @@ export default function App() {
 
 function MainApp() {
   const [question, setQuestion] = useState('')
-  const [embModel, setEmbModel] = usePersistedState<string>('embModel', '')
-  const [similarityThreshold, setSimilarityThreshold] = usePersistedState('similarityThreshold', 0.65)
+  const [embModel, setEmbModel] = usePersistedState<string>('embModel', '', (v) => typeof v === 'string')
+  const [similarityThreshold, setSimilarityThreshold] = usePersistedState(
+    'similarityThreshold', 0.65, (v) => typeof v === 'number' && v >= 0 && v <= 1,
+  )
   const [result, setResult] = useState<PipelineResult | null>(null)
-  const [showAnalysis, setShowAnalysis] = usePersistedState('showAnalysis', false)
+  const [showAnalysis, setShowAnalysis] = usePersistedState('showAnalysis', false, (v) => typeof v === 'boolean')
   const [showDictionary, setShowDictionary] = useState(false)
 
   const queryClient = useQueryClient()
@@ -63,7 +65,9 @@ function MainApp() {
   const examplesQuery = useQuery({ queryKey: ['examples'], queryFn: () => api.examples(5) })
 
   useEffect(() => {
-    if (embModelsQuery.data && !embModel) {
+    if (!embModelsQuery.data) return
+    const known = embModelsQuery.data.options.some((o) => o.model_id === embModel)  // 저장된 값이 폐기된 모델이면 기본값으로
+    if (!embModel || !known) {
       setEmbModel(embModelsQuery.data.default_model_id)
     }
   }, [embModelsQuery.data, embModel])
@@ -116,6 +120,12 @@ function MainApp() {
           <GlossDictionaryPage />
         ) : (
           <>
+            {embModelsQuery.isError && (
+              <div role="alert" className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff1f0] border border-[#ffc1c0] text-[#c0392b]">
+                임베딩 모델 목록을 불러오지 못했습니다 — 백엔드 서버 상태를 확인해주세요.
+              </div>
+            )}
+
             <QuestionInput
               value={question}
               onChange={setQuestion}
@@ -127,16 +137,28 @@ function MainApp() {
             />
 
             {pipelineMutation.isError && (
-              <div className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff1f0] border border-[#ffc1c0] text-[#c0392b]">
+              <div role="alert" className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff1f0] border border-[#ffc1c0] text-[#c0392b]">
                 {(pipelineMutation.error as Error).message}
               </div>
             )}
 
             {result && !showAnalysis && !result.retrieval_ok && (
               <div className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff8e1] border border-[#ffe082] text-[#7a5b0b] mb-3">
-                ⚠ 가장 비슷한 기존 질문의 유사도({(result.similarity * 100).toFixed(1)}%)가 설정한
-                임계값({(similarityThreshold * 100).toFixed(1)}%)보다 낮습니다 — 아래 추천은 신뢰도가
-                낮을 수 있습니다. 임계값은 "분석 보기"에서 조정할 수 있습니다.
+                <div>
+                  ⚠ 가장 비슷한 기존 질문의 유사도({(result.similarity * 100).toFixed(1)}%)가 설정한
+                  임계값({(similarityThreshold * 100).toFixed(1)}%)보다 낮습니다 — 아래 추천은 신뢰도가
+                  낮을 수 있습니다.
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs font-bold shrink-0">임계값 조정</span>
+                  <input
+                    type="range" min={0} max={1} step={0.01}
+                    value={similarityThreshold}
+                    onChange={(e) => setSimilarityThreshold(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-xs tabular-nums shrink-0">{(similarityThreshold * 100).toFixed(0)}%</span>
+                </div>
               </div>
             )}
 

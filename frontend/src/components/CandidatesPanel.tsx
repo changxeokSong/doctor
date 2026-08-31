@@ -1,16 +1,25 @@
 import { useState } from 'react'
 import type { RecommendedGloss } from '../api/types'
 
-function HighlightedEvidenceSentence({ answer, keyword }: { answer: string; keyword: string }) {
-  const idx = answer.indexOf(keyword)
+interface HighlightProps {
+  answer: string
+  keyword: string
+  start?: number | null
+  end?: number | null
+}
+
+function HighlightedEvidenceSentence({ answer, keyword, start, end }: HighlightProps) {
+  const valid = start != null && end != null && answer.slice(start, end) === keyword  // 백엔드 태깅 위치 우선, indexOf는 폴백
+  const idx = valid ? start : answer.indexOf(keyword)
   if (idx === -1) return <>{answer}</>
+  const idxEnd = valid ? end : idx + keyword.length
   return (
     <>
       {answer.slice(0, idx)}
       <mark className="bg-[#fff3bf] text-inherit rounded-[3px] px-0.5 font-semibold">
-        {answer.slice(idx, idx + keyword.length)}
+        {answer.slice(idx, idxEnd)}
       </mark>
-      {answer.slice(idx + keyword.length)}
+      {answer.slice(idxEnd)}
     </>
   )
 }
@@ -30,7 +39,7 @@ function TableEvidenceCell({ evidence, answers, evidenceMinScore }: { evidence: 
     <div className="mt-0.5 space-y-0.5">
       {shown.map((e, j) => (
         <div key={j} className="text-xs leading-snug">
-          <HighlightedEvidenceSentence answer={answers[e.answer_index] ?? ''} keyword={e.keyword} />
+          <HighlightedEvidenceSentence answer={answers[e.answer_index] ?? ''} keyword={e.keyword} start={e.start} end={e.end} />
         </div>
       ))}
       {evidence.length > 1 && (
@@ -54,7 +63,7 @@ function EvidenceRow({ name, evidence, answers }: { name: string; evidence: Reco
     <div className="grid grid-cols-[minmax(96px,168px)_1fr] gap-3 py-[7px] border-b border-[#f7f7fa] last:border-b-0 items-baseline">
       <span className="text-[13px] font-bold text-[var(--mh-ok)] break-all">{name}</span>
       <span className="text-[13px] text-[#3c3c43]">
-        <HighlightedEvidenceSentence answer={answers[best.answer_index] ?? ''} keyword={best.keyword} />
+        <HighlightedEvidenceSentence answer={answers[best.answer_index] ?? ''} keyword={best.keyword} start={best.start} end={best.end} />
       </span>
     </div>
   )
@@ -104,7 +113,7 @@ export function GlossDetailTable({ glosses, subLabel, answers }: { glosses: Reco
                   {best ? (
                     <>
                       <div className="text-xs text-[var(--mh-muted-2)] font-semibold">근거 키워드 · {best.keyword}</div>
-                      <div><HighlightedEvidenceSentence answer={answers[best.answer_index] ?? ''} keyword={best.keyword} /></div>
+                      <div><HighlightedEvidenceSentence answer={answers[best.answer_index] ?? ''} keyword={best.keyword} start={best.start} end={best.end} /></div>
                     </>
                   ) : (
                     <span className="text-xs text-[var(--mh-muted-2)]">직접 근거 문장 없음</span>
@@ -162,8 +171,8 @@ export function RecommendedGlossesTable({ glosses, matchedQuestion, answers, sta
           <div>질문에 대한 답변들에서 키워드를 뽑고,</div>
           <div>그 키워드로 아래 표제어를 추천했습니다.</div>
           <div className="mt-1 text-[var(--mh-muted-2)]">
-            정확일치이거나, 나머지 중 유사도 상위 15%에 든 표제어만 아래 색깔 표시에 나옵니다
-            (이번 질문의 점수 분포로 매번 다시 계산됨 — 자세한 기준은 "분석 보기"에서 확인).
+            <div>정확일치이거나, 나머지 중 유사도 상위 15%에 든 표제어만 아래 색깔 표시에 나옵니다.</div>
+            <div>이번 질문의 점수 분포로 매번 다시 계산됨 — 자세한 기준은 "분석 보기"에서 확인.</div>
           </div>
         </div>
       )}

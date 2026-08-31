@@ -8,10 +8,12 @@ export interface LabelProb {
 export interface RagExample {
   answer: string
   keyword: string
+  source: string
 }
 
 export interface RagMatch {
   matched_question: string
+  matched_question_source: string
   matched_stage: string
   matched_subcategory: string
   similarity: number
@@ -42,6 +44,8 @@ export interface GlossEvidence {
   answer_index: number
   keyword: string
   score: number
+  start: number | null
+  end: number | null
 }
 
 export interface RecommendedGloss {
