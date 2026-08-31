@@ -1,0 +1,20 @@
+# 빌드 컨텍스트에서 제외 — 전부 docker-compose.yml의 볼륨 마운트로 대신 넣거나, 애초에 이미지에
+# 필요 없는 것들이다. 이게 없으면 models/(수십GB)까지 매번 빌드 컨텍스트로 전송돼 극도로 느려진다.
+models/
+cache/
+backups/
+logs/
+notebooks/
+data/
+*.xlsx
+*.sqlite3
+scripts/
+reports/
+checkpoints/
+
+.git/
+__pycache__/
+*.pyc
+
+frontend/node_modules/
+frontend/dist/

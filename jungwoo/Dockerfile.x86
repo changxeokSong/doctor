@@ -1,0 +1,32 @@
+# jungwoo/app.py 전용 Streamlit 앱 — 일반 x86_64 서버(카드 2장)용 변형. jungwoo/Dockerfile은
+# 2026-08-10부로 DGX Spark(GB10, arm64/sm_121) 전용 NGC 이미지로 바뀌었다(그 파일 주석 참고) — 이
+# 파일은 그 이전 x86_64 구성(backups/infra_20260810_before_dgxspark_gb10/jungwoo.Dockerfile)을
+# 되살려서 BuildKit pip 캐시만 최신 jungwoo/Dockerfile에서 가져왔다.
+# 베이스 이미지를 메인 backend(Dockerfile.backend.x86)와 동일하게 맞춰서 torch가 이미 CUDA에 맞게
+# 설치된 상태로 시작한다. docker-compose.x86-2gpu.yml에서 backend=GPU 0/jungwoo=GPU 1로 물리 분리해서
+# VRAM을 나눠 쓴다(카드가 1장뿐인 DGX Spark와 달리 2장이므로 다시 분리 가능).
+# 2026-08-19: Dockerfile.backend.x86과 같은 이유로 CUDA 12.1(+torch 2.5.1)로 낮춤 - 그 파일 주석 참고.
+FROM pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
+
+WORKDIR /srv
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY jungwoo/requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+COPY jungwoo/ ./
+
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8501
+
+# --server.baseUrlPath=jungwoo: nginx가 /jungwoo/ 하위 경로로 프록시하므로 Streamlit도
+# 같은 하위 경로 기준으로 정적 리소스·웹소켓 경로를 생성하게 맞춰야 한다.
+# --server.enableCORS/XsrfProtection=false: 리버스 프록시 뒤에서 흔히 겪는 403/연결 문제 방지.
+CMD ["streamlit", "run", "app.py", \
+     "--server.port=8501", "--server.address=0.0.0.0", \
+     "--server.baseUrlPath=jungwoo", \
+     "--server.enableCORS=false", "--server.enableXsrfProtection=false", \
+     "--browser.gatherUsageStats=false"]

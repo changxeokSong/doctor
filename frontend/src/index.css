@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* 163.239.25.74:8777(조윤기 팀 데모)의 색 팔레트를 실제 페이지 computed style에서 그대로
+ * 추출해 이식했다(2026-08-25, 사용자 요청 - "UI/UX 완전 똑같이"). */
+:root {
+  --mh-bg: #f0f0f5;
+  --mh-surface: #ffffff;
+  --mh-surface-2: #f5f5f7;
+  --mh-border: #e5e5ea;
+  --mh-text: #1d1d1f;
+  --mh-muted: #636366;
+  --mh-muted-2: #8e8e93;
+  --mh-ok: #1a7f37;
+  --mh-ok-soft: #e3f5e8;
+  --mh-accent: #636af5;
+  --mh-accent-hover: #4f56e0;
+  --mh-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+html {
+  /* Tailwind 유틸리티가 전부 rem 기준이라, 루트 폰트크기만 올리면 화면 전체가 비율대로 커진다. */
+  font-size: 118%;
+}
+
+body {
+  margin: 0;
+  background: var(--mh-bg);
+  color: var(--mh-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
