@@ -40,6 +40,14 @@ def _split_synonyms(name: str):
 
 
 @lru_cache(maxsize=None)
+def gloss_category_by_origin() -> dict[int, str]:
+    """origin_number -> Gloss_Category. 세부분류별 카테고리 가산점(services.py의
+    SUBCATEGORY_CATEGORY_PRIORITY) 계산에 쓴다."""
+    gloss_df = load_gloss_dict()
+    return {int(row["Origin_Number"]): row["Gloss_Category"] for _, row in gloss_df.iterrows()}
+
+
+@lru_cache(maxsize=None)
 def build_exact_gloss_index():
     """동의어 단위 정확일치 조회용 인덱스. 행 위치(row_idx)도 같이 저장한다."""
     gloss_df = load_gloss_dict()

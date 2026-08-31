@@ -12,6 +12,7 @@ from app.nlp.keywords import extract_keyword_learned, load_keyword_model
 from app.nlp.morphology import get_kiwi, has_noun
 from app.retrieval.gloss import (
     gloss_lookup_batch, load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
+    gloss_category_by_origin,
 )
 from app.retrieval.retriever import retrieve_answer, load_corpus, ground_truth_labels
 from app.stats import compute_dataset_stats
@@ -21,7 +22,7 @@ from app.stats import compute_dataset_stats
 _LOADERS = [
     _load_classifier_model, _stage_to_subcategories, load_embedder,
     load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
-    get_kiwi, load_corpus, load_keyword_model,
+    get_kiwi, load_corpus, load_keyword_model, gloss_category_by_origin,
 ]
 
 
@@ -95,6 +96,47 @@ RECOMMENDED_GLOSS_MIN_SCORE = 0.5
 
 EVIDENCE_TOP_PERCENTILE = 0.15  # 상위 15%만 "근거 있음"으로 인정한다(2026-08-26 - 30%로 한 번
 # 올려봤다가 표제어가 202개까지 늘어 다시 노이즈가 는 걸 보고 15%로 되돌림).
+
+
+# 세부분류마다 코퍼스 전체 답변으로 어떤 Gloss_Category가 실제로 많이 매칭되는지 배치 집계해본
+# 결과(2026-08-26, scripts/analysis/subcategory_gloss_category_stats_20260826.py,
+# reports/subcategory_gloss_category_stats_20260826.json)를 바탕으로, 뜻이 실제로 통하는 것만
+# 골라 넣었다. 38개 세부분류 전부에 기계적으로 적용하지 않은 이유: "일상생활 수어 > 개념 > 시간"
+# 카테고리(시간부사, "어제"/"지금" 등)가 시간과 무관한 세부분류(예: identity, medication_name)
+# 에서도 1위로 나오는 노이즈가 확인됐다 - 흔한 시간부사가 임베딩 유사도상 이것저것에 두루 걸리는
+# 현상으로 보이며, 진짜 신호가 아니다. 여기 있는 항목들은 그 노이즈를 걸러내고 카테고리가 세부분류
+# 의미와 실제로 맞아떨어지는 것만 수동으로 확인해서 넣었다.
+SUBCATEGORY_CATEGORY_PRIORITY: dict[str, set[str]] = {
+    "location": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
+    "side": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
+    "chief_complaint": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},
+    "surgery_site": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},
+    "pain_score": {"일상생활 수어 > 개념 > 수"},
+    "quality": {"일상생활 수어 > 개념 > 성질"},
+    "prior_treatment": {"일상생활 수어 > 삶 > 치료"},
+    "treatment_choice": {"일상생활 수어 > 삶 > 치료"},
+}
+
+
+# 카테고리보다 한 단계 더 좁힌 표제어 단위 가산점(2026-08-26, 사용자 요청 - 카테고리 뭉치 말고
+# "실제로 이 세부분류에서 많이 나온 표제어" 개별 단위로도 반영해달라고 함). 위 배치 집계의
+# top_glosses에서 뜻이 확실히 맞는 것만 수동으로 골랐다 - 카테고리 필터만으로는 못 거르는
+# 노이즈가 있었다: 예를 들어 "남쪽,남,따뜻하다,포근하다"(1722)는 "개념 > 위치 및 방향" 카테고리라
+# location에서 카테고리 가산점을 받지만, 실제로는 "어디가 아프세요"와 의미상 무관한 임베딩
+# 우연 매칭이라 여기(표제어 목록)엔 안 넣었다. "여덟,팔"(11419)도 마찬가지로 "팔"(arm)과
+# "여덟"(eight)이 같은 표기라 location에서 우연히 잡히지만, pain_score(몇 점이세요 - 숫자
+# 답변)에서는 진짜로 맞는 표제어라 그쪽에만 넣었다. 애매한 것들(예: quality의 "맵다",
+# "위험,험하다")은 제 판단으로 넣지 않고 뺐다 - 필요하면 위 JSON 보고 나중에 추가.
+SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
+    "location": {944, 4302, 537, 12028, 7364, 5468, 6864},  # 허리/팔꿈치/팔/엉덩이/다리/목/등
+    "side": {6036, 12035},  # 오른쪽/왼쪽
+    "chief_complaint": {944, 4302, 12028, 6835, 6864, 7364, 537, 5468},  # 허리/팔꿈치/엉덩이/가슴/등/다리/팔/목
+    "surgery_site": {944, 4302, 7364, 5468, 537, 12028, 6864, 6835, 11004},  # +갈비뼈
+    "pain_score": {12707, 11419, 11055, 24029, 12397, 23841, 12528, 23851, 8944},  # 숫자(9/8/5/3/7/4/4/2) + 점수
+    "quality": {10635, 8608, 10454, 11085, 7410, 5621, 6836, 11833},  # 부드럽다/강하다/묵직하다/무겁다/두껍다/아프다/날카롭다/답답하다
+    "prior_treatment": {4182, 6556, 9525, 10596, 11990},  # 진단/수술/주사/재활/약
+    "treatment_choice": {9525, 11990, 6556, 4182, 10596},  # 주사/약/수술/진단/재활
+}
 
 
 def _dynamic_evidence_min_score(agg: dict) -> float:
@@ -204,13 +246,30 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     # 요청 - 표에서 "답변2, 답변3, 답변4..." 처리 순서가 아니라 실제로 제일 가까운 게 먼저 보이길 원함).
     for row in agg.values():
         row["evidence"].sort(key=lambda e: -e["score"])
-    # 정렬은 여전히 점수가 1순위다 - 다만 점수를 0.01 단위로 반올림해서 "사실상 같은 점수"인
-    # 표제어끼리는 명사(무엇이 - 신체부위 등)를 형용사/동사(어떻다 - 아프다 등)보다 앞세운다
-    # (2026-08-26, 사용자 요청 - "점수 우선, 명사는 근소한 차이일 때만"이라고 미리 합의했던 걸
-    # 이번에 실제로 구현함). has_noun은 kiwi 품사 태그 기반이라 하드코딩 단어 목록이 아니다.
+    # 정렬은 여전히 점수가 1순위다 - 다만 "사실상 같은 점수"의 기준을 두 단계로 나눴다: 큰 틀(0.1
+    # 단위)에서 같은 구간이면 (1) 배치 집계로 확인해서 수동으로 고른 표제어 개별 목록(SUBCATEGORY_
+    # GLOSS_PRIORITY, 더 좁고 정확함), (2) 그걸로 안 잡히면 카테고리 단위(SUBCATEGORY_CATEGORY_
+    # PRIORITY, 더 넓고 코퍼스에 없던 새 답변에도 일반화됨)를 앞세우고, 그다음에야 0.01 단위
+    # 미세 순위 + (3) 명사(무엇이 - 신체부위 등) 우선을 적용한다(2026-08-26, 사용자 요청 - 처음엔
+    # 0.01 단위로만 동점 처리해서 우선순위 표제어가 거의 안 올라온다는 피드백을 받고, "동점" 폭을
+    # 0.1로 넓힘 - 대신 0.1 구간을 벗어날 만큼 점수 차이가 큰(예: 0.3 차이) 다른 표제어는 여전히
+    # 못 이긴다). 원점수(score)는 그대로 보여준다 - 정렬 순서만 바뀌지 화면에 찍히는 숫자는 안
+    # 건드린다. has_noun은 kiwi 품사 태그 기반이라 하드코딩 단어 목록이 아니다.
+    priority_glosses = SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set())
+    priority_categories = SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set())
+    category_by_origin = gloss_category_by_origin()
+
+    def _matches_priority_category(r: dict) -> bool:
+        return category_by_origin.get(r["origin_number"]) in priority_categories
+
     recommended_glosses = sorted(
         agg.values(),
-        key=lambda r: (-r["is_exact"], -round(r["score"], 2), not has_noun(r["name"])),
+        key=lambda r: (
+            -r["is_exact"], -round(r["score"], 1),
+            r["origin_number"] not in priority_glosses,
+            not _matches_priority_category(r),
+            -round(r["score"], 2), not has_noun(r["name"]),
+        ),
     )
 
     candidates = []
