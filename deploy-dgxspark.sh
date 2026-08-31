@@ -13,34 +13,35 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 echo "=== 1. 필수 파일 확인 ==="
+# corpus/의 xlsx 3개와 jungwoo/ 전체는 git에 포함돼 있어 git clone만 하면 이미 존재한다(2026-08-31부로
+# 루트에 흩어져 있던 xlsx를 corpus/로 모으고 소스도 git 추적 대상이 됨) - 그래서 별도 복사가 필요한 건
+# git에 못 올리는 모델 가중치(models/, 100MB 초과) 뿐이다. cache/는 없어도 첫 요청 때 자동 생성된다
+# (아래에서 폴더만 미리 만들어둠).
 missing=0
 for f in \
-  "통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx" \
-  "통증의학과_모델입력_균형보강_학습준비본_0528.xlsx" \
-  "ETRI_KSL_Dictionary_r40-Renewal-3800keyframes.xlsx" \
-  "ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx"
+  "corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx" \
+  "corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx" \
+  "corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx"
 do
   if [ ! -f "$f" ]; then
-    echo "  ✗ 없음: $f"
+    echo "  ✗ 없음: $f (git clone이 아니라 zip 등으로 일부만 받은 건 아닌지 확인할 것)"
     missing=1
   else
     echo "  ✓ 있음: $f"
   fi
 done
-for d in models cache jungwoo; do
-  if [ ! -d "$d" ]; then
-    echo "  ✗ 폴더 없음: $d/ (모델 체크포인트·임베딩 캐시가 이 안에 있어야 함)"
-    missing=1
-  else
-    echo "  ✓ 있음: $d/ ($(du -sh "$d" 2>/dev/null | cut -f1))"
-  fi
-done
+if [ ! -d "models" ]; then
+  echo "  ✗ 폴더 없음: models/ (모델 체크포인트 - git에 안 올라가 있음, README.md '모델 준비' 절 참고)"
+  missing=1
+else
+  echo "  ✓ 있음: models/ ($(du -sh models 2>/dev/null | cut -f1))"
+fi
 if [ "$missing" = "1" ]; then
   echo
-  echo "필수 파일/폴더가 빠져있다. 원본 서버(개발 PC)에서 위 파일·폴더들을 그대로 복사해왔는지 확인할 것."
+  echo "필수 파일/폴더가 빠져있다. README.md '모델 준비' 절을 참고해 models/를 채워둘 것."
   exit 1
 fi
-mkdir -p logs backups
+mkdir -p logs backups cache
 
 echo
 echo "=== 2. Docker 확인 ==="
@@ -71,6 +72,6 @@ docker compose up -d
 echo
 echo "=== 완료 ==="
 echo "백엔드:   http://localhost:8000/api/embedding-models/  (헬스체크용)"
-echo "프론트엔드: http://localhost:8777/"
+echo "프론트엔드: http://localhost:8778/"
 echo "로그 보기: docker compose logs -f"
 echo "종료:      docker compose down"

@@ -48,5 +48,9 @@ jungwoo/dist/
 .DS_Store
 Thumbs.db
 
-# Claude Code 툴 메타데이터(대화 메모리·설정) - 프로젝트 코드가 아니라 로컬 도구 상태.
-.claude/
+# Claude Code 로컬 상태(권한 설정 등) - 프로젝트 코드가 아니라 개인 로컬 설정이라 제외.
+# agents/·skills/(에이전트 팀 정의)는 프로젝트 공용 자산이라 예외적으로 추적한다.
+.claude/*
+!.claude/agents/
+!.claude/skills/
+CLAUDE.md

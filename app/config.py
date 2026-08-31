@@ -4,10 +4,10 @@
 # 기존을 못 이겨서(또는 아직 검증 중이라) 배포 안 한 것들 — 절대 헷갈리면 안 돼서 폴더 자체를 분리했다.
 MODEL_DIR = "./models/deployed/model_final"
 
-CORPUS_EXCEL = "통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx"
+CORPUS_EXCEL = "corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx"
 # 분류기 학습에 실제로 쓰인 소스 — label_maps.json의 라벨셋이 여기서 나왔다. 추론 자체는 이 엑셀을
 # 읽지 않지만(모델에 라벨이 이미 고정돼 있음), 단계->세부분류 그룹핑을 보여줄 때 참고용으로 쓴다.
-CLASSIFIER_TRAIN_EXCEL = "통증의학과_모델입력_균형보강_학습준비본_0528.xlsx"
+CLASSIFIER_TRAIN_EXCEL = "corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx"
 CLASSIFIER_TRAIN_SHEET = "01_학습데이터_균형보강"
 # 2026-08-19: 기본값을 ko-sroberta-multitask(범용)에서 snumin44/sap-bert-ko-en(의료 특화)로 교체.
 # 계기: 표제어 중심 집계 기능을 만들다가 "고혈압" 쿼리에서 ko-sroberta 임베딩이 사실상 무너져있는 걸
@@ -65,7 +65,7 @@ EMB_MODEL_OPTIONS = {
 # 654개)으로만 검색 범위를 좁힌다 — 전체 사전은 scripts/에서 필터링해서
 # ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx로 새로 만들어뒀다. 원본 전체 사전 파일 자체는
 # 그대로 두고(삭제 안 함), 이 상수만 바꾸면 언제든 되돌릴 수 있다.
-GLOSS_EXCEL = "ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx"
+GLOSS_EXCEL = "corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx"
 GLOSS_TOP_K = 10
 
 # 2026-08-19(진하형 피드백): v4(kiwi)는 질문 맥락과 무관하게 답변의 내용어를 전부 뽑아, "무릎이

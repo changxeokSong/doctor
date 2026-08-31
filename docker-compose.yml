@@ -16,10 +16,12 @@ services:
       - ./cache/huggingface:/root/.cache/huggingface
       - ./logs:/srv/logs
       - ./backups:/srv/backups
-      - ./통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx:/srv/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx
-      - ./통증의학과_모델입력_균형보강_학습준비본_0528.xlsx:/srv/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx
-      - ./ETRI_KSL_Dictionary_r40-Renewal-3800keyframes.xlsx:/srv/ETRI_KSL_Dictionary_r40-Renewal-3800keyframes.xlsx
-      - ./ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx:/srv/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx
+      # 2026-08-31: 저장소 루트가 xlsx로 지저분해서 corpus/ 밑으로 모음 - app/config.py의
+      # CORPUS_EXCEL/CLASSIFIER_TRAIN_EXCEL/GLOSS_EXCEL도 같이 corpus/ 접두어로 바꿨다. 이 3개는
+      # git에 포함돼 있어(용량 작음) git clone만 하면 이미 존재한다 - models/처럼 별도 복사가 필요없다.
+      - ./corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx:/srv/corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx
+      - ./corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx:/srv/corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx
+      - ./corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx:/srv/corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx
       # 2026-07-27: 코드도 마운트해서 재빌드 없이 바로 반영되게 함 — runserver가 이미 파일 변경을
       # 감지해서 자동 재시작(StatReloader)하므로, 마운트만으로 hot-reload가 된다. requirements.txt
       # 변경(새 패키지 추가)은 마운트로 안 되고 여전히 재빌드가 필요하다.
@@ -84,7 +86,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "8777:80"
+      - "8778:80"
     depends_on:
       - backend
       - jungwoo

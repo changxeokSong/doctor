@@ -1,6 +1,6 @@
 import type { EmbeddingModelOption, PipelineResult } from '../api/types'
 
-/** 원본 코퍼스 엑셀(통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx)의 "키워드_선정기준" 시트를
+/** 원본 코퍼스 엑셀(corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx)의 "키워드_선정기준" 시트를
  * 그대로 옮긴 것 - v2(SpanTagger) 학습 라벨(대표 환자키워드)을 사람이 고를 때 쓴 실제 원칙이다
  * (2026-08-19, 사용자가 "엑셀에 있는 기준을 화면에서도 보이게" 요청).*/
 const KEYWORD_SELECTION_PRINCIPLES = [
