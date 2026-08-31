@@ -5,20 +5,28 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+# deploy-*.sh가 남긴 .deploy-mode로 x86-2gpu 오버레이 필요 여부를 판단한다 - 오버레이 없이
+# docker compose를 돌리면 backend/jungwoo의 GPU 물리 분리(device_ids) 설정이 base 파일 기준
+# (count:1)으로 되돌아갈 수 있다.
+compose_files=(-f docker-compose.yml)
+if [ -f .deploy-mode ] && [ "$(cat .deploy-mode)" = "x86-2gpu" ]; then
+  compose_files+=(-f docker-compose.x86-2gpu.yml)
+fi
+
 echo "=== 1. git pull ==="
 git pull
 
 echo
 echo "=== 2. 프론트엔드 재빌드 ==="
-docker compose build frontend
+docker compose "${compose_files[@]}" build frontend
 
 echo
 echo "=== 3. 프론트엔드 재기동 ==="
-docker compose up -d frontend
+docker compose "${compose_files[@]}" up -d frontend
 
 echo
 echo "=== 완료 ==="
 echo "백엔드는 코드가 볼륨 마운트돼 있어 git pull만으로 이미 자동 반영됨(StatReloader)."
 echo "requirements.txt(파이썬 패키지)나 frontend/package.json(node 패키지)이 바뀐 경우엔"
-echo "이 스크립트만으로 부족하다 - 그때는 'docker compose build backend'(또는 frontend)를"
-echo "따로 한 번 더 실행할 것."
+echo "이 스크립트만으로 부족하다 - 그때는 'docker compose ${compose_files[*]} build backend'"
+echo "(또는 frontend)를 따로 한 번 더 실행할 것."

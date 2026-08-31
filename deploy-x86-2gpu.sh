@@ -21,12 +21,17 @@ do
     echo "  ✓ 있음: $f"
   fi
 done
-if [ ! -d "models" ]; then
-  echo "  ✗ 폴더 없음: models/ (모델 체크포인트 - git에 안 올라가 있음, README.md '모델 준비' 절 참고)"
-  missing=1
-else
-  echo "  ✓ 있음: models/ ($(du -sh models 2>/dev/null | cut -f1))"
-fi
+for d in \
+  "models/deployed/model_final" \
+  "models/experiments/keyword_extractor_model_v2_deployed_until_20260725_backup"
+do
+  if [ ! -f "$d/pytorch_model.bin" ]; then
+    echo "  ✗ 없음: $d/ (모델 체크포인트 - git에 안 올라가 있음, README.md '모델 준비' 절 참고)"
+    missing=1
+  else
+    echo "  ✓ 있음: $d/ ($(du -sh "$d" 2>/dev/null | cut -f1))"
+  fi
+done
 if [ "$missing" = "1" ]; then
   echo
   echo "필수 파일/폴더가 빠져있다. README.md '모델 준비' 절을 참고해 models/를 채워둘 것."
@@ -66,6 +71,8 @@ docker compose "${compose_files[@]}" build
 echo
 echo "=== 5. 기동 ==="
 docker compose "${compose_files[@]}" up -d
+
+echo "x86-2gpu" > .deploy-mode   # update.sh가 오버레이 필요 여부를 판단할 때 씀
 
 echo
 echo "=== 완료 ==="
