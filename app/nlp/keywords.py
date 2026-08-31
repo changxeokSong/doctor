@@ -66,7 +66,7 @@ def load_keyword_model():
 
 
 def extract_keyword_learned(subcategory: str, answer: str):
-    """대표 키워드 1개(v2)와 그 신뢰도(선택된 span 토큰들의 평균 softmax 확률)를 함께 반환한다.
+    """대표 키워드 1개(v2)·신뢰도·answer 기준 원문 span(start, end)을 반환한다.
     spans가 여러 개 예측되면(보통 없음) 가장 긴 것을 채택한다."""
     keyword_model, keyword_tokenizer = load_keyword_model()
     prefix = f"{subcategory} : "
@@ -81,7 +81,7 @@ def extract_keyword_learned(subcategory: str, answer: str):
     preds = torch.argmax(logits[0], dim=-1).tolist()
     spans = _collect_spans(offsets, preds)
     if not spans:
-        return "", 0.0
+        return "", 0.0, None, None
     s, e = max(spans, key=lambda x: x[1] - x[0])
     tok_conf = [
         float(probs[i, preds[i]])
@@ -89,5 +89,10 @@ def extract_keyword_learned(subcategory: str, answer: str):
         if o_s != o_e and o_s >= s and o_e <= e
     ]
     confidence = round(sum(tok_conf) / len(tok_conf), 4) if tok_conf else 0.0
-    cleaned = strip_trailing_particle(strip_filler_adverbs(full_text[s:e]))
-    return cleaned, confidence
+    raw = full_text[s:e]
+    cleaned = strip_trailing_particle(strip_filler_adverbs(raw))
+    ans_start = max(0, s - len(prefix))  # full_text -> answer 기준으로 변환, cleaned 위치로 보정
+    offset_in_raw = raw.find(cleaned)
+    if offset_in_raw != -1:
+        ans_start += offset_in_raw
+    return cleaned, confidence, ans_start, ans_start + len(cleaned)

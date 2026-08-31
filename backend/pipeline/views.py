@@ -61,7 +61,11 @@ class DatasetStatsView(APIView):
 
 class ExamplesView(APIView):
     def get(self, request):
-        n = int(request.query_params.get("n", 5))
+        try:
+            n = int(request.query_params.get("n", 5))
+        except ValueError:
+            n = 5
+        n = max(0, min(n, 50))
         return Response({"examples": services.example_questions(n)})
 
 

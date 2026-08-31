@@ -1,6 +1,7 @@
 """문장임베딩 모델 로더. model_name별로 lru_cache가 따로 캐싱하므로 모델을 바꿔도 이전 모델
 캐시는 유지된다. Streamlit 데모와 Django API가 이 모듈을 공유한다."""
 import re
+import threading
 from functools import lru_cache
 
 from sentence_transformers import SentenceTransformer
@@ -13,14 +14,17 @@ from app.device import DEVICE
 # model_name이 로드됐는지는 안 알려준다.
 _loaded_model_names: set = set()
 
+_load_lock = threading.Lock()  # 동시 콜드 로딩 레이스 방지 (classifier.py와 동일 패턴)
+
 
 @lru_cache(maxsize=10)
 def load_embedder(model_name: str = EMB_MODEL_NAME) -> SentenceTransformer:
-    # float32 강제 - 안 하면 체크포인트의 torch_dtype(예: 일부 모델 float16)을 따라가 인코더 일부만
-    # half로 로드되면서 encode() 중 dtype mismatch 에러가 난다.
-    model = SentenceTransformer(model_name, device=DEVICE.type, model_kwargs={"torch_dtype": "float32"})
-    _loaded_model_names.add(model_name)
-    return model
+    with _load_lock:
+        # float32 강제 - 안 하면 체크포인트의 torch_dtype(예: 일부 모델 float16)을 따라가 인코더
+        # 일부만 half로 로드되면서 encode() 중 dtype mismatch 에러가 난다.
+        model = SentenceTransformer(model_name, device=DEVICE.type, model_kwargs={"torch_dtype": "float32"})
+        _loaded_model_names.add(model_name)
+        return model
 
 
 def is_embedder_loaded(model_name: str) -> bool:

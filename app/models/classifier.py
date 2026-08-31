@@ -98,8 +98,9 @@ def predict(question: str, topk: int = 5):
     if valid_subs:
         mask = torch.tensor([id2sub[i] in valid_subs for i in range(len(id2sub))], device=sub_prob.device)
         if mask.any():
-            sub_prob = sub_prob * mask
-            sub_prob = sub_prob / sub_prob.sum()
+            masked = sub_prob * mask
+            denom = masked.sum()
+            sub_prob = masked / denom if denom > 0 else sub_prob  # fp16 언더플로 시 0-division 방지
 
     sub_top = torch.topk(sub_prob, min(topk, len(id2sub)))
     sub_results = [(id2sub[int(i)], float(p)) for p, i in zip(sub_top.values, sub_top.indices)]

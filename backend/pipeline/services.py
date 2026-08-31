@@ -22,6 +22,7 @@ _LOADERS = [
     _load_classifier_model, _stage_to_subcategories, load_embedder,
     load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
     get_kiwi, load_corpus, load_keyword_model, gloss_category_by_origin,
+    compute_dataset_stats,
 ]
 
 
@@ -56,7 +57,7 @@ def retrieve(question: str, subcategories, top_k: int, max_examples: int, emb_mo
 def keywords(subcategory: str, answer: str) -> dict:
     """입력(세부분류, 환자 답변) -> 출력(대표 키워드 1개 + 신뢰도). SpanTagger(v2)가 세부분류
     맥락을 반영해 정보량 있는 표현 하나만 고른다(형태소분석으로 내용어 전체를 뽑는 방식은 미사용)."""
-    keyword, confidence = extract_keyword_learned(subcategory, answer)
+    keyword, confidence, _, _ = extract_keyword_learned(subcategory, answer)
     return {"keyword": keyword, "confidence": confidence}
 
 
@@ -140,10 +141,11 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     answers = [a for a, _ in answers_with_source]
     tagged_per_answer = []  # answer_idx -> (keyword, confidence, span) | None
     for ans in answers:
-        kw, conf = extract_keyword_learned(subcategory, ans)
+        kw, conf, s, e = extract_keyword_learned(subcategory, ans)
         if kw:
-            idx = ans.find(kw)
-            span = (idx, idx + len(kw)) if idx != -1 else None
+            # extract_keyword_learned가 실제로 태깅한 위치를 그대로 쓴다(문자열 재검색 대신) - 같은
+            # 단어가 답변에 두 번 나오면 재검색은 항상 첫 번째 위치를 잘못 잡을 수 있다.
+            span = (s, e) if s is not None else None
             tagged_per_answer.append((kw, conf, span))
         else:
             tagged_per_answer.append(None)
@@ -186,6 +188,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     for i, gloss_pair in gloss_by_answer_idx.items():
         exact_hit, hits = gloss_pair
         kw = tagged_per_answer[i][0]
+        span = tagged_per_answer[i][2]
         entries = []
         if exact_hit:
             entries.append((exact_hit[0], exact_hit[1], exact_hit[2], True))
@@ -194,7 +197,10 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             if not (is_exact or score >= evidence_min_score):
                 continue
             row = agg[origin_number]
-            evidence = {"answer_index": i, "keyword": kw, "score": score}
+            evidence = {
+                "answer_index": i, "keyword": kw, "score": score,
+                "start": span[0] if span else None, "end": span[1] if span else None,
+            }
             if evidence not in row["evidence"]:
                 row["evidence"].append(evidence)
     for row in agg.values():
@@ -266,13 +272,15 @@ def run_pipeline(question: str, emb_model, similarity_threshold: float) -> dict:
     retrieval_raw = [(ex["answer"], ex["source"]) for ex in matches[0]["examples"]] if matches else []
     matched_question = matches[0]["matched_question"] if matches else None
     matched_question_source = matches[0]["matched_question_source"] if matches else None
+    # 매칭이 top3_subs 중 2·3위에서 왔을 수 있어 top_sub 대신 실제 매칭된 세부분류를 쓴다
+    matched_subcategory = matches[0]["matched_subcategory"] if matches else top_sub
     retrieve_ms = (time.perf_counter() - t0) * 1000
 
     retrieval_ok = bool(matches) and best_sim >= similarity_threshold
 
     if retrieval_raw:
         retrieval_candidates, recommended_glosses, keyword_extract_ms, gloss_ms, evidence_min_score = _build_candidates(
-            top_sub, retrieval_raw, model_name
+            matched_subcategory, retrieval_raw, model_name
         )
     else:
         retrieval_candidates, recommended_glosses, keyword_extract_ms, gloss_ms = [], [], 0.0, 0.0
