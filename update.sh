@@ -5,9 +5,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-# deploy-*.sh가 남긴 .deploy-mode로 x86-2gpu 오버레이 필요 여부를 판단한다 - 오버레이 없이
-# docker compose를 돌리면 backend/jungwoo의 GPU 물리 분리(device_ids) 설정이 base 파일 기준
-# (count:1)으로 되돌아갈 수 있다.
+# deploy-*.sh가 남긴 .deploy-mode로 x86-2gpu 오버레이 필요 여부를 판단(GPU 분리 설정 유지용)
 compose_files=(-f docker-compose.yml)
 if [ -f .deploy-mode ] && [ "$(cat .deploy-mode)" = "x86-2gpu" ]; then
   compose_files+=(-f docker-compose.x86-2gpu.yml)

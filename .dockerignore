@@ -7,6 +7,7 @@ logs/
 notebooks/
 data/
 *.xlsx
+!jungwoo/*.xlsx  # jungwoo/app.py가 이미지 안에서 직접 읽음
 *.sqlite3
 scripts/
 reports/

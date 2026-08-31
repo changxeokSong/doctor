@@ -48,7 +48,7 @@ docker compose version >/dev/null 2>&1 || { echo "docker compose(플러그인)�
 
 echo
 echo "=== 3. GPU 확인(선택) ==="
-if docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 nvidia-smi >/dev/null 2>&1; then
+if docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-runtime-ubuntu24.04 nvidia-smi >/dev/null 2>&1; then
   echo "  ✓ GPU 컨테이너 접근 확인됨 — GPU 가속으로 실행된다."
 else
   echo "  ⚠ GPU 컨테이너 접근 실패 — nvidia-container-toolkit 미설치이거나 GPU가 없는 서버로 보인다."
