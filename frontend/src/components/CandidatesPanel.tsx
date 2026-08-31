@@ -140,10 +140,15 @@ export function RecommendedGlossesTable({ glosses, matchedQuestion, answers, sta
     )
   }
   const core = glosses.filter((g) => g.is_exact || g.evidence.length > 0)
-  const aboveMidpointCount = core.filter((g) => pillTier(g, evidenceMinScore) !== 3).length
-  const visibleCount = Math.max(MIN_VISIBLE, aboveMidpointCount)
-  const primary = core.slice(0, visibleCount)
-  const secondary = core.slice(visibleCount)
+  // core는 순수 점수순이 아니라 세부분류 우선순위가 섞인 정렬이라(services.py), 앞에서부터 N개를
+  // 자르면 tier 1/2 항목이 뒤로 밀려 접힐 수 있다 - tier로 직접 걸러서 절대 안 숨게 한다.
+  const tier12 = core.filter((g) => pillTier(g, evidenceMinScore) !== 3)
+  const tier3 = core.filter((g) => pillTier(g, evidenceMinScore) === 3)
+  const primary = tier12.length >= MIN_VISIBLE
+    ? tier12
+    : [...tier12, ...tier3.slice(0, MIN_VISIBLE - tier12.length)]
+  const primarySet = new Set(primary.map((g) => g.origin_number))
+  const secondary = core.filter((g) => !primarySet.has(g.origin_number))
   const visibleCore = showBelowMidpoint ? core : primary
   return (
     <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl mb-3 overflow-hidden shadow-[var(--mh-card-shadow)]">

@@ -41,6 +41,7 @@ export interface CandidateKeyword {
 export interface GlossEvidence {
   answer_index: number
   keyword: string
+  score: number
 }
 
 export interface RecommendedGloss {
