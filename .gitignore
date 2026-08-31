@@ -44,13 +44,14 @@ frontend/dist/
 jungwoo/node_modules/
 jungwoo/dist/
 
+# deploy-*.sh가 남기는 서버별 배포 모드 마커(update.sh가 읽음) - 서버 로컬 상태.
+/.deploy-mode
+
 # OS/에디터
 .DS_Store
 Thumbs.db
 
-# Claude Code 로컬 상태(권한 설정 등) - 프로젝트 코드가 아니라 개인 로컬 설정이라 제외.
-# agents/·skills/(에이전트 팀 정의)는 프로젝트 공용 자산이라 예외적으로 추적한다.
-.claude/*
-!.claude/agents/
-!.claude/skills/
+# Claude Code 로컬 상태 - 프로젝트 코드가 아니라 로컬 도구 설정이라 전부 제외(에이전트/스킬
+# 정의 포함, 2026-08-31 - 사용자 요청).
+.claude/
 CLAUDE.md
