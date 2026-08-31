@@ -132,6 +132,14 @@ function MainApp() {
               </div>
             )}
 
+            {result && !showAnalysis && !result.retrieval_ok && (
+              <div className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff8e1] border border-[#ffe082] text-[#7a5b0b] mb-3">
+                ⚠ 가장 비슷한 기존 질문의 유사도({(result.similarity * 100).toFixed(1)}%)가 설정한
+                임계값({(similarityThreshold * 100).toFixed(1)}%)보다 낮습니다 — 아래 추천은 신뢰도가
+                낮을 수 있습니다. 임계값은 "분석 보기"에서 조정할 수 있습니다.
+              </div>
+            )}
+
             {result && !showAnalysis && (
               <RecommendedGlossesTable
                 glosses={result.recommended_glosses} matchedQuestion={result.matched_question}
