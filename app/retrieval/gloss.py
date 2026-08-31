@@ -70,10 +70,10 @@ def build_gloss_synonym_embeddings(model_name: str = EMB_MODEL_NAME):
                 synonyms.append(key)
                 row_idx_of_syn.append(i)
                 seen_here.add(key)
+    os.makedirs("./cache", exist_ok=True)
     cache_path = f"./cache/gloss_synonym_embeddings__{cache_suffix(model_name)}.npy"
-    if os.path.exists(cache_path):
-        syn_emb = np.load(cache_path)
-    else:
+    syn_emb = np.load(cache_path) if os.path.exists(cache_path) else None
+    if syn_emb is None or syn_emb.shape[0] != len(synonyms):
         syn_emb = embedder.encode(prep_passage(model_name, synonyms), normalize_embeddings=True, batch_size=64)
         np.save(cache_path, syn_emb)
     return np.array(row_idx_of_syn), syn_emb

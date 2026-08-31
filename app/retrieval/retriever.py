@@ -33,10 +33,10 @@ def load_corpus(model_name: str = EMB_MODEL_NAME):
     }
 
     embedder = load_embedder(model_name)
+    os.makedirs("./cache", exist_ok=True)
     cache_path = f"./cache/corpus_question_embeddings__{cache_suffix(model_name)}.npy"
-    if os.path.exists(cache_path):
-        question_embeddings = np.load(cache_path)
-    else:
+    question_embeddings = np.load(cache_path) if os.path.exists(cache_path) else None
+    if question_embeddings is None or question_embeddings.shape[0] != len(questions_df):
         question_embeddings = embedder.encode(
             prep_passage(model_name, questions_df["의사 질문(개별)"].tolist()), normalize_embeddings=True
         )
