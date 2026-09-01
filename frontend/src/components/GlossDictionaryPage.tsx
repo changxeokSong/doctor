@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { RecentOutputEntry } from '../api/types'
@@ -92,6 +92,7 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<'origin_number' | 'name' | 'category'>('origin_number')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const dbScrollRef = useRef<HTMLDivElement>(null)
 
   function toggleSort(key: typeof sortKey) {
     if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -99,6 +100,9 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
       setSortKey(key)
       setSortDir('asc')
     }
+    // 스크롤이 아래로 내려간 채로 재정렬하면 눈에 보이는 행이 갑자기 바뀌어 "위아래로 움직이는"
+    // 것처럼 보인다 - 정렬 기준이 바뀔 때마다 맨 위로 되돌린다.
+    dbScrollRef.current?.scrollTo({ top: 0 })
   }
 
   const filtered = useMemo(() => {
@@ -144,14 +148,21 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
         {subStatsQuery.isError && <div className="text-xs text-red-600">불러오기 실패 — {(subStatsQuery.error as Error).message}</div>}
         {subRows.length > 0 && (
           <div className="overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-10" />
+                <col className="w-[30%]" />
+                <col />
+                <col className="w-16" />
+                <col className="w-16" />
+              </colgroup>
               <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
                 <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
-                  <th className="w-10 text-right font-bold px-2 py-2">#</th>
+                  <th className="text-right font-bold px-2 py-2">#</th>
                   <th className="text-left font-bold px-3 py-2">문진단계</th>
                   <th className="text-left font-bold px-3 py-2">세부분류</th>
-                  <th className="w-16 text-right font-bold px-3 py-2">질문</th>
-                  <th className="w-16 text-right font-bold px-3 py-2">답변</th>
+                  <th className="text-right font-bold px-3 py-2">질문</th>
+                  <th className="text-right font-bold px-3 py-2">답변</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,12 +195,17 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
         {dictQuery.isPending && <div className="px-[18px] pb-[18px] text-sm text-[var(--mh-muted)]">불러오는 중...</div>}
         {dictQuery.isError && <div className="px-[18px] pb-[18px] text-sm text-red-600">불러오기 실패 — {(dictQuery.error as Error).message}</div>}
         {dictQuery.data && (
-          <div className="mx-[18px] mb-[18px] overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
-            <table className="w-full text-sm">
+          <div ref={dbScrollRef} className="mx-[18px] mb-[18px] overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-20" />
+                <col />
+                <col className="w-[38%]" />
+              </colgroup>
               <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
                 <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
                   <SortTh
-                    label="인덱스" align="right" className="w-20"
+                    label="인덱스" align="right"
                     active={sortKey === 'origin_number'} dir={sortDir} onClick={() => toggleSort('origin_number')}
                   />
                   <SortTh label="표제어" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
