@@ -5,16 +5,25 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+if [ -z "${UPDATE_SH_BEFORE:-}" ]; then
+  # 1단계: pull부터 하고, update.sh 자신이 방금 바뀌었을 수 있으니 pull된 최신 버전으로 재실행한다
+  # (bash는 실행 중인 스크립트 파일이 바뀌어도 이미 읽은 옛 내용으로 계속 돈다 - 재실행 없이는
+  # 이 스크립트를 고친 커밋이 와도 한 번 더 수동으로 돌려야 반영됐다).
+  echo "=== 1. git pull ==="
+  before=$(git rev-parse HEAD)
+  git pull
+  exec env UPDATE_SH_BEFORE="$before" "$0" "$@"
+fi
+
+# 2단계: 여기부터는 항상 방금 pull한 최신 update.sh가 실행된다.
+before="$UPDATE_SH_BEFORE"
+changed=$(git diff --name-only "$before" HEAD)
+
 # deploy-*.sh가 남긴 .deploy-mode로 x86-2gpu 오버레이 필요 여부를 판단(GPU 분리 설정 유지용)
 compose_files=(-f docker-compose.yml)
 if [ -f .deploy-mode ] && [ "$(cat .deploy-mode)" = "x86-2gpu" ]; then
   compose_files+=(-f docker-compose.x86-2gpu.yml)
 fi
-
-echo "=== 1. git pull ==="
-before=$(git rev-parse HEAD)
-git pull
-changed=$(git diff --name-only "$before" HEAD)
 
 echo
 echo "=== 2. 프론트엔드 재빌드 ==="
@@ -38,4 +47,3 @@ fi
 
 echo
 echo "=== 완료 ==="
-echo "백엔드 코드(app/, backend/)는 볼륨 마운트 + StatReloader로 git pull만으로 이미 반영됨."
