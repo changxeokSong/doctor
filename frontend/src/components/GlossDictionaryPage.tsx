@@ -175,11 +175,11 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
               <tbody>
                 {subRows.map((r, i) => (
                   <tr key={`${r.단계}-${r.세부분류}`} className="border-t border-[var(--mh-border)]">
-                    <td className="text-right px-2 py-2 tabular-nums text-[var(--mh-muted-2)]">{i + 1}</td>
-                    <td className="px-3 py-2">{r.단계}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-[var(--mh-muted)]">{r.세부분류}</td>
-                    <td className="text-right px-3 py-2 tabular-nums">{r.질문}</td>
-                    <td className="text-right px-3 py-2 tabular-nums">{r.답변}</td>
+                    <td className="align-top text-right px-2 py-2 tabular-nums text-[var(--mh-muted-2)]">{i + 1}</td>
+                    <td className="align-top px-3 py-2">{r.단계}</td>
+                    <td className="align-top px-3 py-2 font-mono text-xs text-[var(--mh-muted)]">{r.세부분류}</td>
+                    <td className="align-top text-right px-3 py-2 tabular-nums">{r.질문}</td>
+                    <td className="align-top text-right px-3 py-2 tabular-nums">{r.답변}</td>
                   </tr>
                 ))}
               </tbody>
@@ -222,9 +222,9 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
               <tbody>
                 {filtered.map((g) => (
                   <tr key={g.origin_number} className="border-t border-[var(--mh-border)]">
-                    <td className="text-right px-3 py-2 tabular-nums text-[var(--mh-muted-2)] whitespace-nowrap">{g.origin_number}</td>
-                    <td className="px-3 py-2 font-semibold">{g.name}</td>
-                    <td className="px-3 py-2 text-[var(--mh-muted)]">{stripCategory(g.category)}</td>
+                    <td className="align-top text-right px-3 py-2 tabular-nums text-[var(--mh-muted-2)] whitespace-nowrap">{g.origin_number}</td>
+                    <td className="align-top px-3 py-2 font-semibold">{g.name}</td>
+                    <td className="align-top px-3 py-2 text-[var(--mh-muted)]">{stripCategory(g.category)}</td>
                   </tr>
                 ))}
               </tbody>
