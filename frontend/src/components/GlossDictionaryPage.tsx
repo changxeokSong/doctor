@@ -138,10 +138,11 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
       <Section
         title="전체 현황"
         note={
-          <>
-            <div>"의미 부류" = 표제어가 사전에서 분류된 의미 영역(신체, 시간, 감정 등) — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값.</div>
-            <div>배정 = 구체적으로 분류됨 · 미배정 = "기타"로만 남아있음.</div>
-          </>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>의미 부류: 표제어가 속한 의미 영역 (신체·시간·감정 등)</li>
+            <li>아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값</li>
+            <li>배정: 구체적인 분류 있음 / 미배정: "기타"로만 남음</li>
+          </ul>
         }
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
