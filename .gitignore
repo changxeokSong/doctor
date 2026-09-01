@@ -1,5 +1,6 @@
 # 모델 가중치 (용량 커서 별도 전달 - README.md 참고)
-/models/
+/models/*
+!/models/README.md
 /checkpoints/
 
 # 재생성 가능한 캐시
