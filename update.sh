@@ -12,7 +12,9 @@ if [ -z "${UPDATE_SH_BEFORE:-}" ]; then
   echo "=== 1. git pull ==="
   before=$(git rev-parse HEAD)
   git pull
-  exec env UPDATE_SH_BEFORE="$before" "$0" "$@"
+  # "$0"는 bash update.sh처럼 경로 없이 실행하면 그냥 "update.sh"라 env가 PATH에서 찾다 실패한다 -
+  # 이미 스크립트 디렉터리로 cd한 상태이므로 "./update.sh"로 고정해서 실행 방식과 무관하게 한다.
+  exec env UPDATE_SH_BEFORE="$before" "./$(basename "${BASH_SOURCE[0]}")" "$@"
 fi
 
 # 2단계: 여기부터는 항상 방금 pull한 최신 update.sh가 실행된다.
