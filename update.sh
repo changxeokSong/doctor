@@ -12,19 +12,30 @@ if [ -f .deploy-mode ] && [ "$(cat .deploy-mode)" = "x86-2gpu" ]; then
 fi
 
 echo "=== 1. git pull ==="
+before=$(git rev-parse HEAD)
 git pull
+changed=$(git diff --name-only "$before" HEAD)
 
 echo
 echo "=== 2. 프론트엔드 재빌드 ==="
 docker compose "${compose_files[@]}" build frontend
 
+# requirements.txt는 이미지에 굽는 파이썬 패키지라 볼륨 마운트로 안 잡힌다 - 바뀌었으면 백엔드도 재빌드.
+rebuild_backend=0
+if echo "$changed" | grep -qx "requirements.txt"; then
+  echo
+  echo "=== requirements.txt 변경 감지 - 백엔드 이미지도 재빌드 ==="
+  docker compose "${compose_files[@]}" build backend
+  rebuild_backend=1
+fi
+
 echo
-echo "=== 3. 프론트엔드 재기동 ==="
+echo "=== 3. 재기동 ==="
 docker compose "${compose_files[@]}" up -d frontend
+if [ "$rebuild_backend" = "1" ]; then
+  docker compose "${compose_files[@]}" up -d backend
+fi
 
 echo
 echo "=== 완료 ==="
-echo "백엔드는 코드가 볼륨 마운트돼 있어 git pull만으로 이미 자동 반영됨(StatReloader)."
-echo "requirements.txt(파이썬 패키지)나 frontend/package.json(node 패키지)이 바뀐 경우엔"
-echo "이 스크립트만으로 부족하다 - 그때는 'docker compose ${compose_files[*]} build backend'"
-echo "(또는 frontend)를 따로 한 번 더 실행할 것."
+echo "백엔드 코드(app/, backend/)는 볼륨 마운트 + StatReloader로 git pull만으로 이미 반영됨."
