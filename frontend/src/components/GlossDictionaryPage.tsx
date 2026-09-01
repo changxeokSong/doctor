@@ -30,7 +30,14 @@ function SortTh({
     >
       <span className={'inline-flex items-center gap-1' + (align === 'right' ? ' flex-row-reverse' : '')}>
         {label}
-        <span className="text-[9px] w-2.5 inline-block text-[var(--mh-accent)]">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
+        {/* 글자를 껐다 켜지 않고 항상 렌더링한 채 opacity만 바꾼다 - 없다가 생기면 그 글자의 줄
+            높이만큼 헤더 행 높이가 미세하게 바뀌면서 화면이 흔들린다(정렬 클릭할 때마다 재현됨). */}
+        <span
+          className="text-[9px] w-2.5 inline-block leading-none text-[var(--mh-accent)]"
+          style={{ opacity: active ? 1 : 0 }}
+        >
+          {dir === 'asc' ? '▲' : '▼'}
+        </span>
       </span>
     </th>
   )
