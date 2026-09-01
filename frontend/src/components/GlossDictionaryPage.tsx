@@ -8,8 +8,8 @@ const stripCategory = (c: string) => (c.startsWith(CATEGORY_PREFIX) ? c.slice(CA
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[var(--mh-surface-2)] rounded-[10px] px-[15px] py-[13px] flex flex-col gap-1">
-      <span className="text-xl font-extrabold tabular-nums">{value}</span>
+    <div className="bg-[var(--mh-surface-2)] rounded-[10px] px-[15px] py-[13px] min-h-[72px] flex flex-col justify-center gap-1">
+      <span className="text-lg font-extrabold tabular-nums whitespace-nowrap">{value}</span>
       <span className="text-xs text-[var(--mh-muted-2)]">{label}</span>
     </div>
   )
@@ -38,7 +38,7 @@ function RecentOutputs({ entries }: { entries: RecentOutputEntry[] }) {
     return <div className="text-xs text-[var(--mh-muted-2)]">추천 화면에서 질문을 실행하면 여기에 최근 결과가 쌓입니다.</div>
   }
   return (
-    <div className="flex flex-col gap-2.5 max-h-[420px] overflow-auto">
+    <div className="flex flex-col gap-2.5 max-h-[320px] overflow-auto">
       {entries.map((e, i) => (
         <div key={i} className="border border-[var(--mh-border)] rounded-lg px-3 py-2.5">
           <div className="flex items-baseline justify-between gap-3">
@@ -87,7 +87,7 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
   return (
     <div className="flex flex-col gap-[18px]">
       <Section title="전체 현황">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <StatCard label="전체 글로스" value={`${total}개`} />
           <StatCard label="의미 부류 배정" value={`${total - unassigned}개`} />
           <StatCard label="미배정 글로스" value={`${unassigned}개`} />
@@ -105,7 +105,7 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
         {subStatsQuery.isPending && <div className="text-xs text-[var(--mh-muted-2)]">불러오는 중...</div>}
         {subStatsQuery.isError && <div className="text-xs text-red-600">불러오기 실패 — {(subStatsQuery.error as Error).message}</div>}
         {subRows.length > 0 && (
-          <div className="overflow-auto max-h-[420px]">
+          <div className="overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
                 <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
@@ -119,11 +119,11 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
               <tbody>
                 {subRows.map((r, i) => (
                   <tr key={`${r.단계}-${r.세부분류}`} className="border-t border-[var(--mh-border)]">
-                    <td className="text-right px-2 py-1.5 tabular-nums text-[var(--mh-muted-2)]">{i + 1}</td>
-                    <td className="px-3 py-1.5">{r.단계}</td>
-                    <td className="px-3 py-1.5 font-mono text-xs text-[var(--mh-muted)]">{r.세부분류}</td>
-                    <td className="text-right px-3 py-1.5 tabular-nums">{r.질문}</td>
-                    <td className="text-right px-3 py-1.5 tabular-nums">{r.답변}</td>
+                    <td className="text-right px-2 py-2 tabular-nums text-[var(--mh-muted-2)]">{i + 1}</td>
+                    <td className="px-3 py-2">{r.단계}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-[var(--mh-muted)]">{r.세부분류}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{r.질문}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{r.답변}</td>
                   </tr>
                 ))}
               </tbody>
@@ -146,7 +146,7 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
         {dictQuery.isPending && <div className="px-[18px] pb-[18px] text-sm text-[var(--mh-muted)]">불러오는 중...</div>}
         {dictQuery.isError && <div className="px-[18px] pb-[18px] text-sm text-red-600">불러오기 실패 — {(dictQuery.error as Error).message}</div>}
         {dictQuery.data && (
-          <div className="overflow-auto max-h-[calc(100vh-14rem)]">
+          <div className="mx-[18px] mb-[18px] overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
                 <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
