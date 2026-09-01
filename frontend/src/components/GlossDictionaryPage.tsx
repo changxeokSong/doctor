@@ -43,11 +43,11 @@ function SortTh({
   )
 }
 
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+function Section({ title, note, children }: { title: string; note?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">
       <div className="text-[13px] font-extrabold mb-1">{title}</div>
-      {note && <div className="text-xs text-[var(--mh-muted-2)] mb-3">{note}</div>}
+      {note && <div className="text-xs text-[var(--mh-muted-2)] mb-3 space-y-0.5">{note}</div>}
       {children}
     </div>
   )
@@ -137,7 +137,12 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
     <div className="flex flex-col gap-[18px]">
       <Section
         title="전체 현황"
-        note='"의미 부류"는 표제어가 사전에서 어떤 의미 영역(신체, 시간, 감정 등)으로 분류돼 있는지를 뜻합니다 — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값입니다. 배정 = 구체적으로 분류됨, 미배정 = "기타"로만 남아있음.'
+        note={
+          <>
+            <div>"의미 부류" = 표제어가 사전에서 분류된 의미 영역(신체, 시간, 감정 등) — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값.</div>
+            <div>배정 = 구체적으로 분류됨 · 미배정 = "기타"로만 남아있음.</div>
+          </>
+        }
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <StatCard label="전체 글로스" value={`${total}개`} />
