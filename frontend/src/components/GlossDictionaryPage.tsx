@@ -15,6 +15,27 @@ function StatCard({ label, value }: { label: string; value: string }) {
   )
 }
 
+function SortTh({
+  label, active, dir, onClick, align = 'left', className = '',
+}: {
+  label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right'; className?: string
+}) {
+  return (
+    <th
+      className={
+        `font-bold px-3 py-2 whitespace-nowrap cursor-pointer select-none hover:text-[var(--mh-text)] ${className} ` +
+        (align === 'right' ? 'text-right' : 'text-left')
+      }
+      onClick={onClick}
+    >
+      <span className={'inline-flex items-center gap-1' + (align === 'right' ? ' flex-row-reverse' : '')}>
+        {label}
+        <span className="text-[9px] w-2.5 inline-block text-[var(--mh-accent)]">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
+      </span>
+    </th>
+  )
+}
+
 function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">
@@ -69,13 +90,30 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
   const dictQuery = useQuery({ queryKey: ['gloss-dictionary'], queryFn: api.glossDictionary })
   const subStatsQuery = useQuery({ queryKey: ['subcategory-stats'], queryFn: api.subcategoryStats })
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<'origin_number' | 'name' | 'category'>('origin_number')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(key: typeof sortKey) {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   const filtered = useMemo(() => {
     if (!dictQuery.data) return []
     const q = search.trim()
-    if (!q) return dictQuery.data.glosses
-    return dictQuery.data.glosses.filter((g) => g.name.includes(q) || String(g.origin_number).includes(q))
-  }, [dictQuery.data, search])
+    const rows = q ? dictQuery.data.glosses.filter((g) => g.name.includes(q) || String(g.origin_number).includes(q)) : dictQuery.data.glosses
+    const sorted = [...rows].sort((a, b) => {
+      const cmp =
+        sortKey === 'origin_number' ? a.origin_number - b.origin_number
+        : sortKey === 'name' ? a.name.localeCompare(b.name, 'ko')
+        : stripCategory(a.category).localeCompare(stripCategory(b.category), 'ko')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return sorted
+  }, [dictQuery.data, search, sortKey, sortDir])
 
   const unassigned = dictQuery.data?.categories.find((c) => stripCategory(c.category) === '기타')?.count ?? 0
   const total = dictQuery.data?.total ?? 0
@@ -150,9 +188,12 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
                 <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
-                  <th className="w-20 text-right font-bold px-3 py-2 whitespace-nowrap">인덱스</th>
-                  <th className="text-left font-bold px-3 py-2">표제어</th>
-                  <th className="text-left font-bold px-3 py-2">분류</th>
+                  <SortTh
+                    label="인덱스" align="right" className="w-20"
+                    active={sortKey === 'origin_number'} dir={sortDir} onClick={() => toggleSort('origin_number')}
+                  />
+                  <SortTh label="표제어" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+                  <SortTh label="분류" active={sortKey === 'category'} dir={sortDir} onClick={() => toggleSort('category')} />
                 </tr>
               </thead>
               <tbody>
