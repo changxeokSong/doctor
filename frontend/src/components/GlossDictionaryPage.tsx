@@ -135,7 +135,10 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
 
   return (
     <div className="flex flex-col gap-[18px]">
-      <Section title="전체 현황">
+      <Section
+        title="전체 현황"
+        note='"의미 부류"는 표제어가 사전에서 어떤 의미 영역(신체, 시간, 감정 등)으로 분류돼 있는지를 뜻합니다 — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값입니다. 배정 = 구체적으로 분류됨, 미배정 = "기타"로만 남아있음.'
+      >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <StatCard label="전체 글로스" value={`${total}개`} />
           <StatCard label="의미 부류 배정" value={`${total - unassigned}개`} />
