@@ -1,5 +1,5 @@
 // /api는 vite.config.ts(dev)/nginx(prod)가 백엔드로 프록시하므로 상대경로만 쓰면 된다.
-import type { PipelineResult, EmbeddingModelsResult, GlossApiResult, GlossDictionaryResult } from './types'
+import type { PipelineResult, EmbeddingModelsResult, GlossApiResult, GlossDictionaryResult, SubcategoryStatRow } from './types'
 
 export class ApiError extends Error {  // status: main.tsx retry 로직이 4xx/5xx 구분용
   status: number
@@ -53,4 +53,6 @@ export const api = {
   examples: (n = 5) => getJSON<{ examples: string[] }>(`/examples/?n=${n}`),
 
   glossDictionary: () => getJSON<GlossDictionaryResult>('/gloss-dictionary/'),
+
+  subcategoryStats: () => getJSON<{ rows: SubcategoryStatRow[] }>('/subcategory-stats/'),
 }

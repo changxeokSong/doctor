@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api/client'
-import type { PipelineResult } from './api/types'
+import type { PipelineResult, RecentOutputEntry } from './api/types'
 import { usePersistedState } from './hooks/usePersistedState'
 import { QuestionInput } from './components/QuestionInput'
 import { RecommendedGlossesTable } from './components/CandidatesPanel'
@@ -59,6 +59,9 @@ function MainApp() {
   const [result, setResult] = useState<PipelineResult | null>(null)
   const [showAnalysis, setShowAnalysis] = usePersistedState('showAnalysis', false, (v) => typeof v === 'boolean')
   const [showDictionary, setShowDictionary] = useState(false)
+  const [recentOutputs, setRecentOutputs] = usePersistedState<RecentOutputEntry[]>(
+    'recentOutputs', [], (v) => Array.isArray(v),
+  )
 
   const queryClient = useQueryClient()
   const embModelsQuery = useQuery({ queryKey: ['embedding-models'], queryFn: api.embeddingModels })
@@ -79,6 +82,13 @@ function MainApp() {
       setResult(r)
       // 방금 요청으로 embModel이 새로 로드됐을 수 있어 loaded 상태 갱신
       queryClient.invalidateQueries({ queryKey: ['embedding-models'] })
+      const core = r.recommended_glosses.filter((g) => g.is_exact || g.evidence.length > 0).slice(0, 8)
+      const entry: RecentOutputEntry = {
+        question: r.matched_question ?? question,
+        timestamp: Date.now(),
+        glosses: core.map((g) => ({ origin_number: g.origin_number, name: g.name, score: g.score, is_exact: g.is_exact })),
+      }
+      setRecentOutputs([entry, ...recentOutputs].slice(0, 20))
     },
   })
 
@@ -117,7 +127,7 @@ function MainApp() {
         </div>
 
         {showDictionary ? (
-          <GlossDictionaryPage />
+          <GlossDictionaryPage recentOutputs={recentOutputs} />
         ) : (
           <>
             {embModelsQuery.isError && (

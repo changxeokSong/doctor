@@ -143,6 +143,26 @@ export interface DatasetStatsRow {
   '답변 합계': number
 }
 
+export interface RecentOutputGloss {
+  origin_number: number
+  name: string
+  score: number
+  is_exact: boolean
+}
+
+export interface RecentOutputEntry {
+  question: string
+  timestamp: number
+  glosses: RecentOutputGloss[]
+}
+
+export interface SubcategoryStatRow {
+  단계: string
+  세부분류: string
+  질문: number
+  답변: number
+}
+
 export interface LabelListsResult {
   stages: string[]
   subcategories: string[]
