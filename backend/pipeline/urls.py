@@ -11,6 +11,7 @@ urlpatterns = [
     path("embedding-models/", views.EmbeddingModelsView.as_view()),
     path("gloss-dictionary/", views.GlossDictionaryView.as_view()),
     path("dataset-stats/", views.DatasetStatsView.as_view()),
+    path("subcategory-stats/", views.SubcategoryStatsView.as_view()),
     path("examples/", views.ExamplesView.as_view()),
     path("labels/", views.LabelsView.as_view()),
 ]

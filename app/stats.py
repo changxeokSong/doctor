@@ -53,3 +53,27 @@ def compute_dataset_stats() -> pd.DataFrame:
         "답변(기존)": df["답변(기존)"].sum(), "답변(증강)": df["답변(증강)"].sum(), "답변 합계": df["답변 합계"].sum(),
     }
     return pd.concat([df, pd.DataFrame([total])], ignore_index=True)
+
+
+@lru_cache(maxsize=None)
+def compute_subcategory_stats() -> pd.DataFrame:
+    """단계·세부분류 조합별 질문/답변 개수. 같은 세부분류 이름이 여러 단계에서 재사용되므로
+    (예: "lifestyle"이 생활습관/수술 및 입원 이력 둘 다에 있음) 반드시 (단계, 세부분류) 쌍으로 묶는다."""
+    q = pd.read_excel(CORPUS_EXCEL, sheet_name="의사질문_목록")
+    a = pd.read_excel(CORPUS_EXCEL, sheet_name="확장문진_답변키워드")
+
+    qid2stage = dict(zip(q["의사질문ID"], q["단계"]))
+    qid2sub = dict(zip(q["의사질문ID"], q["세부분류"]))
+    a = a.copy()
+    a["단계"] = a["의사질문ID"].map(qid2stage)
+    a["세부분류"] = a["의사질문ID"].map(qid2sub)
+
+    g_q = q.groupby(["단계", "세부분류"]).size()
+    g_a = a.groupby(["단계", "세부분류"]).size()
+    pairs = sorted(set(g_q.index) | set(g_a.index))
+
+    rows = [
+        {"단계": stage, "세부분류": sub, "질문": int(g_q.get((stage, sub), 0)), "답변": int(g_a.get((stage, sub), 0))}
+        for stage, sub in pairs
+    ]
+    return pd.DataFrame(rows)

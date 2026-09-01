@@ -15,14 +15,14 @@ from app.retrieval.gloss import (
     gloss_category_by_origin,
 )
 from app.retrieval.retriever import retrieve_answer, load_corpus, ground_truth_labels
-from app.stats import compute_dataset_stats
+from app.stats import compute_dataset_stats, compute_subcategory_stats
 
 # cache_info().misses 증가 여부로 이번 요청에 콜드스타트(모델 로딩)가 포함됐는지 판단한다.
 _LOADERS = [
     _load_classifier_model, _stage_to_subcategories, load_embedder,
     load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
     get_kiwi, load_corpus, load_keyword_model, gloss_category_by_origin,
-    compute_dataset_stats,
+    compute_dataset_stats, compute_subcategory_stats,
 ]
 
 
@@ -352,6 +352,10 @@ def gloss_dictionary() -> dict:
 
 def dataset_stats() -> list:
     return compute_dataset_stats().to_dict(orient="records")
+
+
+def subcategory_stats() -> list:
+    return compute_subcategory_stats().to_dict(orient="records")
 
 
 def label_lists() -> dict:

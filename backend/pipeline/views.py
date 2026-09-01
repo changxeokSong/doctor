@@ -59,6 +59,11 @@ class DatasetStatsView(APIView):
         return Response({"rows": services.dataset_stats()})
 
 
+class SubcategoryStatsView(APIView):
+    def get(self, request):
+        return Response({"rows": services.subcategory_stats()})
+
+
 class ExamplesView(APIView):
     def get(self, request):
         try:
