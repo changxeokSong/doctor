@@ -1,4 +1,4 @@
-import type { CandidateKeyword, EmbeddingModelOption, PipelineResult } from '../api/types'
+import type { CandidateKeyword, EmbeddingModelOption, GlossTableRow, PipelineResult } from '../api/types'
 import { EmbModelSelect } from './EmbModelSelect'
 import { RecommendationStats, RecommendedGlossesTable } from './CandidatesPanel'
 import { stripCategory } from '../utils/gloss'
@@ -44,6 +44,94 @@ function KeywordMapping({ kw }: { kw: CandidateKeyword | undefined }) {
       핵심 키워드: {kw.keyword} → {hit.name}_{hit.origin_number}
       {!kw.gloss_exact && <span className="pool-meta"> (정확일치 아님 · 유사도 {hit.score.toFixed(3)})</span>}
     </div>
+  )
+}
+
+const PRIORITY_REASON: Record<'gloss' | 'category', string> = {
+  gloss: '표제어 우선',
+  category: '카테고리 우선',
+}
+
+const tierOf = (r: GlossTableRow) => (r.priorityKind === 'gloss' ? 0 : r.priorityKind === 'category' ? 1 : 2)
+
+/** 정렬 방식을 문구로 하드코딩하지 않고 응답 순서에서 역으로 판별한다 - 백엔드 정렬키가 바뀌어도
+ * 화면 설명이 실제와 어긋나지 않는다. */
+function describeOrder(rows: GlossTableRow[]) {
+  // 정확일치는 묶음과 무관하게 맨 앞으로 빠지므로 묶음 판별에서 제외한다.
+  let lead = 0
+  while (lead < rows.length && rows[lead].score >= 0.9999) lead++
+  const rest = rows.slice(lead)
+  const tiers = rest.map(tierOf)
+  const grouped = tiers.every((t, i) => i === 0 || t >= tiers[i - 1])
+  const withinScoreDesc = rest.every(
+    (r, i) => i === 0 || tierOf(r) !== tierOf(rest[i - 1]) || rest[i - 1].score >= r.score - 1e-9,
+  )
+  if (!grouped || !withinScoreDesc) return '정확일치 > 점수 구간 > 표제어 우선 > 카테고리 우선 > 점수 순으로 봅니다.'
+  return `${lead > 0 ? `정확일치 ${lead}개를 맨 앞에 두고, 그다음 ` : ''}표제어 우선 → 카테고리 우선 → 나머지 순으로 묶고, 각 묶음 안에서는 유사도 내림차순으로 정렬합니다.`
+}
+
+/** 최종 순서(백엔드 정렬)와 순수 유사도 순서를 대조해 어떤 표제어가 몇 칸 움직였는지 계산한다.
+ * table_rows는 이미 최종 순서로 와서 인덱스가 곧 최종 순위 - 유사도 순위만 여기서 매긴다. */
+function rankMoves(rows: GlossTableRow[]) {
+  const scoreRank = new Map<number, number>()
+  rows
+    .map((row, i) => ({ row, i }))
+    .sort((a, b) => b.row.score - a.row.score || a.i - b.i)
+    .forEach(({ row }, i) => scoreRank.set(row.glossId, i + 1))
+  return rows.map((row, i) => ({
+    row, finalRank: i + 1, scoreRank: scoreRank.get(row.glossId)!, delta: scoreRank.get(row.glossId)! - (i + 1),
+  }))
+}
+
+function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
+  const moves = rankMoves(rows)
+  const movedUp = moves.filter((m) => m.delta > 0)
+  const byGloss = movedUp.filter((m) => m.row.priorityKind === 'gloss').length
+  const byCategory = movedUp.filter((m) => m.row.priorityKind === 'category').length
+  // 우선순위 태그가 없는데도 올라간 행 - 위 행들이 앞당겨지면서 상대적으로 밀려 올라온 것.
+  const byPush = movedUp.length - byGloss - byCategory
+  const top = [...moves].filter((m) => m.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)
+
+  if (movedUp.length === 0) return <Row label="순위 재배정">유사도 순서 그대로입니다 — 앞당겨진 표제어가 없습니다.</Row>
+
+  return (
+    <>
+      <Row label="정렬 방식">{describeOrder(rows)}</Row>
+      <Row label="순위 재배정">
+        유사도 순위보다 위로 올라온 표제어 {movedUp.length}개 (표제어 우선 {byGloss} · 카테고리 우선 {byCategory}
+        {byPush > 0 && ` · 밀림으로 인한 상승 ${byPush}`}) ·
+        묶음 크기 표제어 우선 {rows.filter((r) => tierOf(r) === 0).length} / 카테고리 우선{' '}
+        {rows.filter((r) => tierOf(r) === 1).length} / 나머지 {rows.filter((r) => tierOf(r) === 2).length}
+      </Row>
+      <details style={{ marginTop: 12, fontSize: 12 }}>
+        <summary className="app-link" style={{ cursor: 'pointer' }}>
+          유사도 순위와 최종 순위가 다른 표제어 보기 ({top.length}/{moves.filter((m) => m.delta !== 0).length}개)
+        </summary>
+        <div className="table-scroll" style={{ marginTop: 8, maxHeight: 300 }}>
+          <table className="table rank-table">
+            <thead><tr><th>표제어</th><th>점수</th><th>유사도 순위</th><th>최종 순위</th><th>이동</th><th>사유</th></tr></thead>
+            <tbody>
+              {top.map((m) => (
+                <tr key={m.row.glossId}>
+                  <td className="gl">{m.row.keyword.split(',')[0]}</td>
+                  <td>{m.row.score.toFixed(2)}</td>
+                  <td>{m.scoreRank}</td>
+                  <td>{m.finalRank}</td>
+                  <td style={{ color: m.delta > 0 ? '#0a7d32' : '#b00020', fontWeight: 700 }}>
+                    {m.delta > 0 ? `▲${m.delta}` : `▼${-m.delta}`}
+                  </td>
+                  <td>{m.row.priorityKind ? PRIORITY_REASON[m.row.priorityKind] : '위 행이 앞당겨져 밀림'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card-note">
+          우선순위는 세부분류별로 미리 지정된 표제어·분류 목록입니다 — 유사도가 조금 낮아도 이 문진 세부분류에서
+          실제로 쓸 표제어를 위로 올립니다. 순수 유사도 순서로 보려면 "글로스·문진 현황" 화면에서 스코어 헤더를 누르세요.
+        </div>
+      </details>
+    </>
   )
 }
 
@@ -135,6 +223,7 @@ export function AnalysisPanel({
         <Row label="컷오프">
           유사도 {cutoff.minScore} 이상 (후보 상위 {pct(cutoff.topPercentile)} 지점에서 동적 결정) · 제외 {cutoff.excludedCount}개
         </Row>
+        <RankReassignment rows={result.table_rows} />
 
         {cutoff.excludedSample.length > 0 && (
           <details style={{ marginTop: 12, fontSize: 12 }}>
@@ -150,7 +239,7 @@ export function AnalysisPanel({
                       <td className="row-number">{i + 1}</td>
                       <td className="gl">{g.keyword}</td>
                       <td>{g.glossId}</td>
-                      <td>{g.score.toFixed(4)}</td>
+                      <td>{g.score.toFixed(2)}</td>
                       <td>{stripCategory(g.category)}</td>
                     </tr>
                   ))}

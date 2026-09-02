@@ -31,31 +31,67 @@ function Section({ title, note, children }: { title: string; note?: React.ReactN
   )
 }
 
+const PRIORITY_BADGE: Record<'gloss' | 'category', { label: string; className: string; title: string }> = {
+  gloss: {
+    label: '표제어 우선',
+    className: 'priority-badge priority-badge-gloss',
+    title: '이 세부분류에서 먼저 보여주기로 지정된 표제어라 점수보다 앞선 순서로 올라왔습니다.',
+  },
+  category: {
+    label: '카테고리 우선',
+    className: 'priority-badge priority-badge-category',
+    title: '이 세부분류에 어울리는 분류라 점수보다 앞선 순서로 올라왔습니다.',
+  },
+}
+
 /** 163.239.25.74:8777의 catalog.html "최근 출력 글로스 · ID 목록"과 같은 형태 — 최근 결과
  * 이력 전체가 아니라 가장 최근 실행 1건만, 표(.compact-table)로 보여준다. */
 function RecentOutputs({ entries }: { entries: RecentOutputEntry[] }) {
+  // 기본은 백엔드 순서(세부분류 우선순위 반영) - 스코어 헤더를 누르면 순수 점수순으로 토글한다.
+  const [byScore, setByScore] = useState(false)
+
   if (entries.length === 0) {
     return <div className="empty-note">추천 화면에서 질문을 실행하면 여기에 최근 출력 목록이 표시됩니다.</div>
   }
   const latest = entries[0]
+  const rows = byScore ? [...latest.glosses].sort((a, b) => b.score - a.score) : latest.glosses
+  const anyPrioritized = latest.glosses.some((g) => g.prioritized)
+
   return (
     <>
       <div className="latest-question">{latest.question} · {latest.stage} / {latest.subCategory}</div>
       <div className="table-scroll">
         <table className="table compact-table">
-          <thead><tr><th>#</th><th>글로스</th><th>ID</th><th>스코어</th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th><th>글로스</th><th>ID</th>
+              <SortTh label="스코어" active={byScore} dir="desc" onClick={() => setByScore(!byScore)} />
+            </tr>
+          </thead>
           <tbody>
-            {latest.glosses.map((g, i) => (
-              <tr key={g.glossId}>
-                <td className="row-number">{i + 1}</td>
-                <td className="gl">{g.keyword}</td>
-                <td>{g.glossId}</td>
-                <td>{g.score.toFixed(4)}</td>
-              </tr>
-            ))}
+            {rows.map((g, i) => {
+              const badge = g.priorityKind ? PRIORITY_BADGE[g.priorityKind] : null
+              return (
+                <tr key={g.glossId}>
+                  <td className="row-number">{i + 1}</td>
+                  <td className="gl">
+                    {g.keyword}
+                    {badge && <> <span className={badge.className} title={badge.title}>{badge.label}</span></>}
+                  </td>
+                  <td>{g.glossId}</td>
+                  <td>{g.score.toFixed(2)}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
+      {anyPrioritized && (
+        <div className="card-note">
+          기본 순서는 점수순이 아니라 세부분류별 우선순위 규칙을 먼저 따릅니다 — 배지가 붙은 행이 그렇게 앞당겨진
+          것입니다. "스코어" 헤더를 누르면 순수 점수 내림차순으로, 다시 누르면 원래 순서로 돌아갑니다.
+        </div>
+      )}
     </>
   )
 }

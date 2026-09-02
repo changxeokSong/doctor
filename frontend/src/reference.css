@@ -180,6 +180,20 @@ mark { background: #fff3bf; color: inherit; border-radius: 3px; padding: 0 2px; 
 .role-secondary, .role-related { color: #7d5a00; }
 .role-none { color: #8e8e93; }
 
+/* 아래는 참고 사이트에 없는 우리 화면 전용 규칙(순위 재배정 표 · 정렬 우선순위 배지). */
+
+/* 첫 컬럼이 행번호가 아니라 표제어라 .compact-table의 42px/우측정렬 규칙을 쓸 수 없다. */
+.rank-table { min-width: 560px; }
+.rank-table th:first-child, .rank-table td:first-child { min-width: 104px; }
+
+/* 정렬 우선순위 배지 - 출처(.source-badge)와 색은 비슷하지만 의미가 다른 축이라 클래스를 분리한다. */
+.priority-badge {
+  display: inline-block; border-radius: 999px; padding: 2px 7px;
+  font-size: 10px; font-weight: 700; white-space: nowrap;
+}
+.priority-badge.priority-badge-gloss { color: #155f2a; background: #e3f5e8; }
+.priority-badge.priority-badge-category { color: #4f56a8; background: #ececff; }
+
 @media (max-width: 720px) {
   .layout { padding: 20px 10px 40px; }
   .card { padding: 14px; }

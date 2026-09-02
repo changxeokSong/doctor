@@ -62,13 +62,15 @@ function MainApp() {
   const [lastRequest, setLastRequest] = useState<{ question: string; emb_model: string; similarity_threshold: number } | null>(null)
   const [view, setView] = usePersistedState<View>('view', 'main', (v) => v === 'main' || v === 'dictionary' || v === 'analysis')
   const [recentOutputs, setRecentOutputs] = usePersistedState<RecentOutputEntry[]>(
-    // API 응답 포맷 변경(keyword/glossId/source) 이전에 저장된 옛 모양(name/origin_number/is_exact)이
-    // 남아있으면 그대로 렌더링하다 크래시하므로, 항목 모양까지 검증해서 옛 데이터는 버리고 빈 배열로 시작한다.
+    // 옛 스키마로 저장된 캐시가 남아있으면 렌더링 중 크래시하므로 항목 모양까지 검증해 버린다.
+    // 필드를 추가할 때마다 여기도 같이 늘려야 타입 선언(비옵셔널)과 실제 저장값이 어긋나지 않는다.
     'recentOutputs', [],
     (v) => Array.isArray(v) && v.every((e) =>
       typeof (e as RecentOutputEntry)?.stage === 'string' &&
       Array.isArray((e as RecentOutputEntry)?.glosses) &&
-      (e as RecentOutputEntry).glosses.every((g) => typeof g.keyword === 'string' && typeof g.glossId === 'number'),
+      (e as RecentOutputEntry).glosses.every((g) =>
+        typeof g.keyword === 'string' && typeof g.glossId === 'number' && typeof g.prioritized === 'boolean',
+      ),
     ),
   )
 
@@ -96,7 +98,10 @@ function MainApp() {
         stage: r.top_stage.label,
         subCategory: r.top_sub.label,
         timestamp: Date.now(),
-        glosses: r.recommended_glosses.map((g) => ({ glossId: g.glossId, keyword: g.keyword, score: g.score, source: g.source })),
+        glosses: r.recommended_glosses.map((g) => ({
+          glossId: g.glossId, keyword: g.keyword, score: g.score, source: g.source,
+          prioritized: g.prioritized, priorityKind: g.priorityKind,
+        })),
       }
       setRecentOutputs([entry, ...recentOutputs].slice(0, 20))
     },

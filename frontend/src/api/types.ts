@@ -45,11 +45,16 @@ export interface CandidateKeyword {
 
 export type GlossSource = 'answer_evidence' | 'intent_expansion'
 
+// 세부분류별 우선순위 규칙으로 점수 순서를 거슬러 앞당겨진 행 - 'gloss'가 'category'보다 정렬 키에서 앞선다.
+export type PriorityKind = 'gloss' | 'category' | null
+
 export interface RecommendedGloss {
   keyword: string
   glossId: number
   score: number
   source: GlossSource
+  prioritized: boolean
+  priorityKind: PriorityKind
 }
 
 export interface GlossTableRow {
@@ -58,6 +63,8 @@ export interface GlossTableRow {
   score: number
   category: string
   source: GlossSource
+  prioritized: boolean
+  priorityKind: PriorityKind
   evidenceSentence: string
   evidenceStart: number | null
   evidenceEnd: number | null
@@ -249,6 +256,8 @@ export interface RecentOutputGloss {
   keyword: string
   score: number
   source: GlossSource
+  prioritized: boolean
+  priorityKind: PriorityKind
 }
 
 export interface RecentOutputEntry {
