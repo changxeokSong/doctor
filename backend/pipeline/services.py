@@ -9,7 +9,7 @@ from app.models.classifier import (
     predict, load_model as _load_classifier_model, stage_to_subcategories as _stage_to_subcategories,
 )
 from app.nlp.keywords import extract_keyword_learned, load_keyword_model
-from app.nlp.morphology import get_kiwi, has_noun
+from app.nlp.morphology import get_kiwi
 from app.retrieval.gloss import (
     gloss_lookup_batch, load_gloss_dict, build_exact_gloss_index, build_gloss_synonym_embeddings,
     gloss_category_by_origin,
@@ -108,7 +108,7 @@ SUBCATEGORY_CATEGORY_PRIORITY: dict[str, set[str]] = {
 # 카테고리보다 한 단계 더 좁힌 표제어 단위 가산점 - 배치 집계에서 의미가 확실히 맞는 것만 수동 선별
 # (카테고리 필터만으로는 못 거르는 우연한 임베딩 매칭이 있어 개별 표제어 단위로 한 번 더 걸렀다).
 SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
-    "location": {944, 4302, 537, 12028, 7364, 5468, 6864},  # 허리/팔꿈치/팔/엉덩이/다리/목/등
+    "location": {944, 4302, 537, 12028, 7364, 5468, 6864, 11004},  # 허리/팔꿈치/팔/엉덩이/다리/목/등/갈비뼈
     "side": {6036, 12035},  # 오른쪽/왼쪽
     "chief_complaint": {944, 4302, 12028, 6835, 6864, 7364, 537, 5468},  # 허리/팔꿈치/엉덩이/가슴/등/다리/팔/목
     "surgery_site": {944, 4302, 7364, 5468, 537, 12028, 6864, 6835, 11004},  # +갈비뼈
@@ -229,16 +229,14 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
                 row["evidence"].append(evidence)
     for row in agg.values():
         row["evidence"].sort(key=lambda e: -e["score"])
-    # 정렬 우선순위: 정확일치 > 점수(0.1 단위 구간) > 표제어 우선순위(SUBCATEGORY_GLOSS_PRIORITY) >
-    # 카테고리 우선순위(SUBCATEGORY_CATEGORY_PRIORITY) > 점수(0.01 단위) > 명사 우선(has_noun).
-    # 0.1 단위로 동점 구간을 넓게 잡아야 우선순위 표제어가 실제로 앞으로 올라온다.
+    # 정렬: 정확일치 > 우선순위 묶음(표제어 > 카테고리 > 나머지) > 점수. 묶음 안에서는 점수를
+    # 그대로 쓴다 - 점수를 구간으로 뭉개면 같은 묶음 안에서도 순서가 뒤집혀 보여 설명이 안 된다.
     recommended_glosses = sorted(
         agg.values(),
         key=lambda r: (
-            -r["is_exact"], -round(r["score"], 1),
-            r["origin_number"] not in priority_glosses,
-            not _matches_priority_category(r),
-            -round(r["score"], 2), not has_noun(r["name"]),
+            -r["is_exact"],
+            0 if r["origin_number"] in priority_glosses else 1 if _matches_priority_category(r) else 2,
+            -r["score"],
         ),
     )
 
@@ -267,6 +265,14 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
         candidates.append({"answer": ans, "answer_source": ans_src, "keywords": kw_results})
     gloss_ms = (time.perf_counter() - t0) * 1000
 
+    # 점수 순서를 거슬러 앞당겨진 행 표시용 - 정렬 키가 점수보다 우선순위를 먼저 보기 때문에
+    # 화면에서 순서가 뒤집혀 보이는 이유를 알려줘야 한다. 표제어 우선순위가 카테고리 우선순위보다
+    # 정렬 키에서 앞서므로 둘 다 걸리면 gloss로 본다(같은 배지끼리의 역전까지 설명돼야 함).
+    def _priority_kind(r: dict) -> str | None:
+        if r["origin_number"] in priority_glosses:
+            return "gloss"
+        return "category" if _matches_priority_category(r) else None
+
     # LLM 기반 시스템과 형식을 맞춘 압축 포맷. 답변 원문에서 실제로 검출된 키워드로 도달한 것만
     # 남기므로 source는 항상 answer_evidence - 스키마 호환을 위해 필드는 유지한다.
     compact_glosses = [
@@ -275,6 +281,8 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "glossId": r["origin_number"],
             "score": round(r["score"], 4),
             "source": "answer_evidence",
+            "prioritized": _priority_kind(r) is not None,
+            "priorityKind": _priority_kind(r),
         }
         for r in recommended_glosses
         if r["evidence"]
@@ -288,6 +296,8 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "score": round(r["score"], 4),
             "category": category_by_origin.get(r["origin_number"], "기타"),
             "source": "answer_evidence",
+            "prioritized": _priority_kind(r) is not None,
+            "priorityKind": _priority_kind(r),
             "evidenceSentence": answers[r["evidence"][0]["answer_index"]],
             # 근거 문장 안에서 실제로 이 표제어를 뽑아낸 위치 - 프론트에서 <mark>로 강조 표시할 때 씀.
             "evidenceStart": r["evidence"][0]["start"],
