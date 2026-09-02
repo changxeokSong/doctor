@@ -21,6 +21,7 @@
 
 # 참고용 외부 레퍼런스 사본
 medical_qna_llm/
+/html/
 
 # Python
 __pycache__/
