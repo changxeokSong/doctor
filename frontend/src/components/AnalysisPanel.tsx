@@ -92,7 +92,17 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
   const byPush = movedUp.length - byGloss - byCategory
   const top = [...moves].filter((m) => m.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)
 
-  if (movedUp.length === 0) return <Row label="순위 재배정">유사도 순서 그대로입니다 — 앞당겨진 표제어가 없습니다.</Row>
+  // 우선순위 목록이 없는 세부분류(49개 중 41개)에선 재배정이 0건이지만, 정렬 방식 설명은 그대로 보여준다.
+  if (movedUp.length === 0) {
+    return (
+      <>
+        <Row label="정렬 방식">{describeOrder(rows)}</Row>
+        <Row label="순위 재배정">
+          점수 순서 그대로입니다 — 이 세부분류에는 우선순위 목록이 없어 앞당겨진 표제어가 없습니다.
+        </Row>
+      </>
+    )
+  }
 
   return (
     <>
@@ -217,18 +227,20 @@ export function AnalysisPanel({
           {` · 표제어 산출에 실제로 기여한 답변 ${pool.resolved}개`}
         </Row>
         <Row label="표제어 구성">
-          답변 키워드와 사전 표제어를 임베딩 유사도로 비교해 표제어별 최고점으로 집계하고,
-          정확일치이거나 근거 문턱 이상인 것만 남깁니다.
+          답변 키워드와 사전 표제어를 임베딩 유사도로 비교해, 표제어별 최고점으로 집계합니다.
         </Row>
-        <Row label="컷오프">
-          점수 {cutoff.minScore} 이상 (후보 상위 {pct(cutoff.topPercentile)} 지점에서 동적 결정) · 제외 {cutoff.excludedCount}개
-          {cutoff.categoryLeniency > 0 && (
-            <> · 세부분류 우선 카테고리에 속하면 문턱 {cutoff.categoryLeniency}만큼 완화</>
-          )}
+        <Row label="추리는 순서">
+          ① 근거 문턱 {cutoff.minScore} 이상만 남김(후보 상위 {pct(cutoff.topPercentile)} 지점에서 질문마다 동적 결정)
+          → ② 정확일치 &gt; 표제어 우선 &gt; 카테고리 우선 &gt; 나머지 순으로 정렬
+          → ③ 상위 {cutoff.maxCount}개만 표시. 이번 질문에서 최종 {result.table_rows.length}개가 남고 {cutoff.excludedCount}개가 빠졌습니다.
+        </Row>
+        <Row label="왜 개수로 자르나">
+          절대 점수(예: 0.65 이상)로 자르지 않는 이유는 임베딩 모델마다 유사도 스케일이 다르기 때문입니다 —
+          같은 질문이라도 모델을 바꾸면 특정 점수 이상인 표제어 수가 수십 배까지 차이 납니다.
+          개수로 자르면 어떤 모델을 쓰든 분량이 일정합니다.
         </Row>
         <Row label="점수 기준">
-          표의 "점수"는 순수 임베딩 유사도입니다 — 값 자체는 조작하지 않고, 우선 카테고리에 속하는
-          표제어만 위 컷오프 문턱을 낮춰 통과시킵니다. 정렬도 이 순수 점수 기준입니다.
+          표의 "점수"는 임베딩 유사도 원본입니다 — 가산이나 보정이 전혀 없고, 정렬과 순위 비교도 이 값 그대로입니다.
         </Row>
         <RankReassignment rows={result.table_rows} />
 

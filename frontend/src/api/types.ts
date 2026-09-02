@@ -155,8 +155,9 @@ export interface AnalysisAnswerPool {
 export interface AnalysisCutoff {
   minScore: number
   topPercentile: number
-  // 세부분류 우선 카테고리에 속하는 표제어는 문턱이 이만큼 낮다(점수 자체는 순수 유사도 그대로).
-  categoryLeniency: number
+  // 정렬 후 이 개수만 남긴다. 절대 점수로 안 자르는 이유 - 임베딩 모델마다 유사도 스케일이 달라
+  // 같은 질문에서도 "0.65 이상"의 개수가 모델별로 수십 배 차이 난다.
+  maxCount: number
   excludedCount: number
   // 사전 전체가 아니라 상위 일부 표본만 온다 - 개수는 excludedCount를 써야 한다.
   excludedSample: ExcludedGloss[]

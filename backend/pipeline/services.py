@@ -89,9 +89,10 @@ EVIDENCE_TOP_PERCENTILE = 0.15  # 상위 15%만 "근거 있음"으로 인정 (30
 
 EXCLUDED_SAMPLE_SIZE = 20  # 분석 패널에 보여줄 컷오프 제외 표제어 예시 개수
 
-# 세부분류에 맞는 카테고리면 근거 인정 문턱을 살짝 낮춘다(점수 자체는 건드리지 않음) - 표시되는
-# "점수"가 항상 순수 임베딩 유사도로 남게 하기 위해, 예전처럼 점수에 가산하는 대신 문턱 쪽을 조정한다.
-CATEGORY_LENIENCY = 0.05
+# 백분위 문턱은 사전 크기(655)에 비례해 항상 ~100개를 남기므로, 뒤쪽 대부분이 무관한 표제어로 채워진다.
+# 절대 점수로 자르는 방식은 모델마다 유사도 스케일이 달라(측정: 같은 질문에서 0.65 이상이 10개 vs 461개)
+# 못 쓰고, 세부분류에 따라 정답이 0.55~0.64에 몰리기도 해서 개수로 제한한다.
+RECOMMENDED_GLOSS_MAX_COUNT = 30
 
 
 # 세부분류별 실제 매칭 빈도가 높은 Gloss_Category 배치 집계 결과 중, 의미가 맞는 것만 수동 선별.
@@ -150,12 +151,6 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     def _matches_priority_category(r: dict) -> bool:
         return category_by_origin.get(r["origin_number"]) in priority_categories
 
-    def _threshold_for(origin_number: int, base: float) -> float:
-        # 카테고리 우선순위에 걸리면 그만큼 문턱을 낮춰서 통과시킨다(점수는 그대로 둔다).
-        if category_by_origin.get(origin_number) in priority_categories:
-            return base - CATEGORY_LENIENCY
-        return base
-
     t0 = time.perf_counter()
     answers = [a for a, _ in answers_with_source]
     tagged_per_answer = []  # answer_idx -> (keyword, confidence, span) | None
@@ -213,7 +208,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             entries.append((exact_hit[0], exact_hit[1], exact_hit[2], True))
         entries += [(name, origin_number, score, False) for name, origin_number, score in hits]
         for name, origin_number, score, is_exact in entries:
-            if not (is_exact or score >= _threshold_for(origin_number, evidence_min_score)):
+            if not (is_exact or score >= evidence_min_score):
                 continue
             row = agg[origin_number]
             evidence = {
@@ -268,6 +263,9 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             return "gloss"
         return "category" if _matches_priority_category(r) else None
 
+    with_evidence = [r for r in recommended_glosses if r["evidence"]]
+    shown = with_evidence[:RECOMMENDED_GLOSS_MAX_COUNT]
+
     # LLM 기반 시스템과 형식을 맞춘 압축 포맷. 답변 원문에서 실제로 검출된 키워드로 도달한 것만
     # 남기므로 source는 항상 answer_evidence - 스키마 호환을 위해 필드는 유지한다.
     compact_glosses = [
@@ -279,8 +277,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "prioritized": _priority_kind(r) is not None,
             "priorityKind": _priority_kind(r),
         }
-        for r in recommended_glosses
-        if r["evidence"]
+        for r in shown
     ]
     # 화면 표시용 - compact_glosses(API 스키마)는 그대로 두고 분류·근거 문장만 덧붙인다.
     # "의미 부류"(intentRole/intentLabel)는 LLM이 질문 의도를 해석해 붙이는 개념이라 넣지 않는다.
@@ -298,14 +295,13 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "evidenceStart": r["evidence"][0]["start"],
             "evidenceEnd": r["evidence"][0]["end"],
         }
-        for r in recommended_glosses
-        if r["evidence"]
+        for r in shown
     ]
     # "답변 매핑" 통계 - 채택된 표제어들이 실제로 어느 답변에서 나왔는지(answer_index) 세어
     # 답변 풀 중 몇 개가 표제어 산출에 기여했는지 본다.
-    resolved_answer_idx = {
-        e["answer_index"] for r in recommended_glosses if r["evidence"] for e in r["evidence"]
-    }
+    resolved_answer_idx = {e["answer_index"] for r in shown for e in r["evidence"]}
+    # 문턱 미달 + 개수 제한에 밀린 것 = 화면에 안 나오는 전부.
+    shown_origins = {r["origin_number"] for r in shown}
     excluded = [
         {
             "keyword": r["name"],
@@ -314,7 +310,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "category": category_by_origin.get(r["origin_number"], "기타"),
         }
         for r in recommended_glosses
-        if not r["evidence"]
+        if r["origin_number"] not in shown_origins
     ]
     stats = {
         "dropped_count": len(excluded),
@@ -394,8 +390,7 @@ def _build_analysis(
         "cutoff": {
             "minScore": round(evidence_min_score, 3),
             "topPercentile": EVIDENCE_TOP_PERCENTILE,
-            # 세부분류 우선 카테고리에 속하는 표제어는 문턱이 이만큼 낮다(점수 자체는 안 건드림).
-            "categoryLeniency": CATEGORY_LENIENCY,
+            "maxCount": RECOMMENDED_GLOSS_MAX_COUNT,
             "excludedCount": gloss_stats["dropped_count"],
             "excludedSample": gloss_stats["excluded_sample"],
             "latencyMs": round(gloss_ms, 1),
