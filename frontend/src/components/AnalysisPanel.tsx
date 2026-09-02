@@ -67,7 +67,7 @@ function describeOrder(rows: GlossTableRow[]) {
     (r, i) => i === 0 || tierOf(r) !== tierOf(rest[i - 1]) || rest[i - 1].score >= r.score - 1e-9,
   )
   if (!grouped || !withinScoreDesc) return '정확일치 > 점수 구간 > 표제어 우선 > 카테고리 우선 > 점수 순으로 봅니다.'
-  return `${lead > 0 ? `정확일치 ${lead}개를 맨 앞에 두고, 그다음 ` : ''}표제어 우선 → 카테고리 우선 → 나머지 순으로 묶고, 각 묶음 안에서는 유사도 내림차순으로 정렬합니다.`
+  return `${lead > 0 ? `정확일치 ${lead}개를 맨 앞에 두고, 그다음 ` : ''}표제어 우선 → 카테고리 우선 → 나머지 순으로 묶고, 각 묶음 안에서는 점수 내림차순으로 정렬합니다.`
 }
 
 /** 최종 순서(백엔드 정렬)와 순수 유사도 순서를 대조해 어떤 표제어가 몇 칸 움직였는지 계산한다.
@@ -98,18 +98,18 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
     <>
       <Row label="정렬 방식">{describeOrder(rows)}</Row>
       <Row label="순위 재배정">
-        유사도 순위보다 위로 올라온 표제어 {movedUp.length}개 (표제어 우선 {byGloss} · 카테고리 우선 {byCategory}
+        점수 순위보다 위로 올라온 표제어 {movedUp.length}개 (표제어 우선 {byGloss} · 카테고리 우선 {byCategory}
         {byPush > 0 && ` · 밀림으로 인한 상승 ${byPush}`}) ·
         묶음 크기 표제어 우선 {rows.filter((r) => tierOf(r) === 0).length} / 카테고리 우선{' '}
         {rows.filter((r) => tierOf(r) === 1).length} / 나머지 {rows.filter((r) => tierOf(r) === 2).length}
       </Row>
       <details style={{ marginTop: 12, fontSize: 12 }}>
         <summary className="app-link" style={{ cursor: 'pointer' }}>
-          유사도 순위와 최종 순위가 다른 표제어 보기 ({top.length}/{moves.filter((m) => m.delta !== 0).length}개)
+          점수 순위와 최종 순위가 다른 표제어 보기 ({top.length}/{moves.filter((m) => m.delta !== 0).length}개)
         </summary>
         <div className="table-scroll" style={{ marginTop: 8, maxHeight: 300 }}>
           <table className="table rank-table">
-            <thead><tr><th>표제어</th><th>점수</th><th>유사도 순위</th><th>최종 순위</th><th>이동</th><th>사유</th></tr></thead>
+            <thead><tr><th>표제어</th><th>점수</th><th>점수 순위</th><th>최종 순위</th><th>이동</th><th>사유</th></tr></thead>
             <tbody>
               {top.map((m) => (
                 <tr key={m.row.glossId}>
@@ -127,8 +127,8 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
           </table>
         </div>
         <div className="card-note">
-          우선순위는 세부분류별로 미리 지정된 표제어·분류 목록입니다 — 유사도가 조금 낮아도 이 문진 세부분류에서
-          실제로 쓸 표제어를 위로 올립니다. 순수 유사도 순서로 보려면 "글로스·문진 현황" 화면에서 스코어 헤더를 누르세요.
+          우선순위는 세부분류별로 미리 지정된 표제어·분류 목록입니다 — 점수가 조금 낮아도 이 문진 세부분류에서
+          실제로 쓸 표제어를 위로 올립니다. 점수 순서로만 보려면 "글로스·문진 현황" 화면에서 스코어 헤더를 누르세요.
         </div>
       </details>
     </>
@@ -221,7 +221,11 @@ export function AnalysisPanel({
           정확일치이거나 근거 문턱 이상인 것만 남깁니다.
         </Row>
         <Row label="컷오프">
-          유사도 {cutoff.minScore} 이상 (후보 상위 {pct(cutoff.topPercentile)} 지점에서 동적 결정) · 제외 {cutoff.excludedCount}개
+          점수 {cutoff.minScore} 이상 (후보 상위 {pct(cutoff.topPercentile)} 지점에서 동적 결정) · 제외 {cutoff.excludedCount}개
+        </Row>
+        <Row label="점수 보정">
+          표의 "점수"는 순수 임베딩 유사도가 아닙니다 — 이 세부분류의 우선 카테고리에 속하는 표제어는 컷오프에서
+          아깝게 탈락하지 않도록 소폭 가산된 값입니다(정확일치는 가산 없음). 순위 비교도 이 보정 점수 기준입니다.
         </Row>
         <RankReassignment rows={result.table_rows} />
 
