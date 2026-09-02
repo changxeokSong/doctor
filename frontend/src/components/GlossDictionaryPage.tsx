@@ -35,12 +35,12 @@ const PRIORITY_BADGE: Record<'gloss' | 'category', { label: string; className: s
   gloss: {
     label: '표제어 우선',
     className: 'priority-badge priority-badge-gloss',
-    title: '이 세부분류에서 먼저 보여주기로 지정된 표제어라 점수보다 앞선 순서로 올라왔습니다.',
+    title: '이 표제어 자체가 이 세부분류의 우선순위 목록에 이름(ID)으로 직접 등록되어 있어, 점수보다 앞선 순서로 올라왔습니다.',
   },
   category: {
     label: '카테고리 우선',
     className: 'priority-badge priority-badge-category',
-    title: '이 세부분류에 어울리는 분류라 점수보다 앞선 순서로 올라왔습니다.',
+    title: '이 표제어의 이름은 목록에 없지만, 이 표제어가 속한 분류(카테고리) 자체가 이 세부분류의 우선순위 목록에 있어 점수보다 앞선 순서로 올라왔습니다.',
   },
 }
 
@@ -88,8 +88,12 @@ function RecentOutputs({ entries }: { entries: RecentOutputEntry[] }) {
       </div>
       {anyPrioritized && (
         <div className="card-note">
-          기본 순서는 점수순이 아니라 세부분류별 우선순위 규칙을 먼저 따릅니다 — 배지가 붙은 행이 그렇게 앞당겨진
-          것입니다. "스코어" 헤더를 누르면 순수 점수 내림차순으로, 다시 누르면 원래 순서로 돌아갑니다.
+          기본 순서는 점수순이 아니라 세부분류별 우선순위 규칙을 먼저 따릅니다. "표제어 우선"은 이 표제어의
+          이름(ID)이 이 세부분류용으로 미리 정해둔 목록에 직접 올라있는 경우이고, "카테고리 우선"은 이름은
+          그 목록에 없지만 이 표제어가 속한 분류가 목록에 있는 경우입니다 — 둘 다 사람이 세부분류마다 미리
+          지정해둔 것으로, 지금은 49개 세부분류 중 8개(location, side, chief_complaint, surgery_site,
+          pain_score, quality, prior_treatment, treatment_choice)에만 있습니다. "스코어" 헤더를 누르면
+          순수 점수 내림차순으로, 다시 누르면 원래 순서로 돌아갑니다.
         </div>
       )}
     </>
