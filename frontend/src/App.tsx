@@ -4,7 +4,7 @@ import { api } from './api/client'
 import type { PipelineResult, RecentOutputEntry } from './api/types'
 import { usePersistedState } from './hooks/usePersistedState'
 import { QuestionInput } from './components/QuestionInput'
-import { RecommendedGlossesTable } from './components/CandidatesPanel'
+import { RecommendedGlossesTable, RecommendationStats, ResultJsonViewer } from './components/CandidatesPanel'
 import { AnalysisPanel } from './components/AnalysisPanel'
 import { GlossDictionaryPage } from './components/GlossDictionaryPage'
 
@@ -50,6 +50,8 @@ export default function App() {
   return <MainApp />
 }
 
+type View = 'main' | 'dictionary' | 'analysis'
+
 function MainApp() {
   const [question, setQuestion] = useState('')
   const [embModel, setEmbModel] = usePersistedState<string>('embModel', '', (v) => typeof v === 'string')
@@ -57,15 +59,21 @@ function MainApp() {
     'similarityThreshold', 0.65, (v) => typeof v === 'number' && v >= 0 && v <= 1,
   )
   const [result, setResult] = useState<PipelineResult | null>(null)
-  const [showAnalysis, setShowAnalysis] = usePersistedState('showAnalysis', false, (v) => typeof v === 'boolean')
-  const [showDictionary, setShowDictionary] = useState(false)
+  const [lastRequest, setLastRequest] = useState<{ question: string; emb_model: string; similarity_threshold: number } | null>(null)
+  const [view, setView] = usePersistedState<View>('view', 'main', (v) => v === 'main' || v === 'dictionary' || v === 'analysis')
   const [recentOutputs, setRecentOutputs] = usePersistedState<RecentOutputEntry[]>(
-    'recentOutputs', [], (v) => Array.isArray(v),
+    // API 응답 포맷 변경(keyword/glossId/source) 이전에 저장된 옛 모양(name/origin_number/is_exact)이
+    // 남아있으면 그대로 렌더링하다 크래시하므로, 항목 모양까지 검증해서 옛 데이터는 버리고 빈 배열로 시작한다.
+    'recentOutputs', [],
+    (v) => Array.isArray(v) && v.every((e) =>
+      typeof (e as RecentOutputEntry)?.stage === 'string' &&
+      Array.isArray((e as RecentOutputEntry)?.glosses) &&
+      (e as RecentOutputEntry).glosses.every((g) => typeof g.keyword === 'string' && typeof g.glossId === 'number'),
+    ),
   )
 
   const queryClient = useQueryClient()
   const embModelsQuery = useQuery({ queryKey: ['embedding-models'], queryFn: api.embeddingModels })
-  const examplesQuery = useQuery({ queryKey: ['examples'], queryFn: () => api.examples(5) })
 
   useEffect(() => {
     if (!embModelsQuery.data) return
@@ -78,15 +86,17 @@ function MainApp() {
   const pipelineMutation = useMutation({
     mutationFn: (q: string) =>
       api.runPipeline(q, embModel, similarityThreshold),
-    onSuccess: (r) => {
+    onSuccess: (r, q) => {
       setResult(r)
+      setLastRequest({ question: q, emb_model: embModel, similarity_threshold: similarityThreshold })
       // 방금 요청으로 embModel이 새로 로드됐을 수 있어 loaded 상태 갱신
       queryClient.invalidateQueries({ queryKey: ['embedding-models'] })
-      const core = r.recommended_glosses.filter((g) => g.is_exact || g.evidence.length > 0).slice(0, 8)
       const entry: RecentOutputEntry = {
-        question: r.matched_question ?? question,
+        question: q,
+        stage: r.top_stage.label,
+        subCategory: r.top_sub.label,
         timestamp: Date.now(),
-        glosses: core.map((g) => ({ origin_number: g.origin_number, name: g.name, score: g.score, is_exact: g.is_exact })),
+        glosses: r.recommended_glosses.map((g) => ({ glossId: g.glossId, keyword: g.keyword, score: g.score, source: g.source })),
       }
       setRecentOutputs([entry, ...recentOutputs].slice(0, 20))
     },
@@ -98,40 +108,55 @@ function MainApp() {
     pipelineMutation.mutate(target)
   }
 
+  // 참고 사이트(163.239.25.74:8777)는 화면 3개(index/catalog/analysis)가 각자 헤더 네비를
+  // 갖는데, 우리는 SPA라 상태 토글로 흉내낸다 - 라벨/화살표 위치까지 그쪽과 동일하게 맞춘다.
+  const nav = view === 'dictionary'
+    ? [{ label: '분석 페이지', onClick: () => setView('analysis') }, { label: '← 추천 화면', onClick: () => setView('main') }]
+    : view === 'analysis'
+    ? [{ label: '글로스·문진 현황', onClick: () => setView('dictionary') }, { label: '← 추천 화면', onClick: () => setView('main') }]
+    : [{ label: '글로스·문진 현황', onClick: () => setView('dictionary') }, { label: '분석 페이지 →', onClick: () => setView('analysis') }]
+
   return (
-    <div className="min-h-screen flex justify-center px-[18px] py-10">
-      <div className="w-full max-w-[880px] flex flex-col gap-[18px]">
-        <div className="flex items-baseline justify-between gap-4">
+    <div className="layout">
+      <div className="main">
+        <div className="app-header">
           <div>
-            <h1 className="text-[22px] leading-[1.25] font-bold">수어 글로스 추천기</h1>
-            <p className="text-[13px] text-[var(--mh-muted)] mt-1">의사 질문을 입력하면 환자 답변에 쓸 핵심 표제어를 추천합니다.</p>
+            <h1>수어 글로스 추천기</h1>
+            <p>의사 질문을 입력하면 환자 답변에 쓸 핵심 표제어를 추천합니다.</p>
           </div>
-          <div className="flex items-center gap-4 shrink-0">
-            <button
-              type="button"
-              className="text-[13px] font-semibold text-[var(--mh-accent)] hover:underline whitespace-nowrap"
-              onClick={() => setShowDictionary(!showDictionary)}
-            >
-              {showDictionary ? '← 추천 화면' : '표제어 사전 →'}
-            </button>
-            {result && !showDictionary && (
-              <button
-                type="button"
-                className="text-[13px] font-semibold text-[var(--mh-accent)] hover:underline whitespace-nowrap"
-                onClick={() => setShowAnalysis(!showAnalysis)}
-              >
-                {showAnalysis ? '← 추천 화면' : '분석 보기 →'}
-              </button>
-            )}
-          </div>
+          <nav className="app-nav">
+            {nav.map((n) => (
+              <button key={n.label} type="button" className="app-link" onClick={n.onClick}>{n.label}</button>
+            ))}
+          </nav>
         </div>
 
-        {showDictionary ? (
+        {view === 'dictionary' ? (
           <GlossDictionaryPage recentOutputs={recentOutputs} />
+        ) : view === 'analysis' ? (
+          result ? (
+            <>
+            {pipelineMutation.isError && (
+              <div role="alert" className="notice error">{(pipelineMutation.error as Error).message}</div>
+            )}
+            <AnalysisPanel
+              result={result}
+              embOptions={embModelsQuery.data?.options ?? []}
+              embModel={embModel} onEmbModelChange={setEmbModel}
+              similarityThreshold={similarityThreshold} onSimilarityThresholdChange={setSimilarityThreshold}
+              onRerun={runPipeline} rerunning={pipelineMutation.isPending}
+            />
+            </>
+          ) : (
+            <div className="card">
+              <div className="card-title">실행 기록 없음</div>
+              <div className="empty-note">추천 화면에서 질문을 한 번 실행하면 그 결과의 근거가 여기에 표시됩니다.</div>
+            </div>
+          )
         ) : (
           <>
             {embModelsQuery.isError && (
-              <div role="alert" className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff1f0] border border-[#ffc1c0] text-[#c0392b]">
+              <div role="alert" className="notice error">
                 임베딩 모델 목록을 불러오지 못했습니다 — 백엔드 서버 상태를 확인해주세요.
               </div>
             )}
@@ -140,20 +165,18 @@ function MainApp() {
               value={question}
               onChange={setQuestion}
               onSubmit={runPipeline}
-              examples={examplesQuery.data?.examples ?? []}
               loading={pipelineMutation.isPending}
-              embOptions={embModelsQuery.data?.options ?? []}
-              embModel={embModel} onEmbModelChange={setEmbModel}
+              canSubmit={!!embModel}
             />
 
             {pipelineMutation.isError && (
-              <div role="alert" className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff1f0] border border-[#ffc1c0] text-[#c0392b]">
+              <div role="alert" className="notice error">
                 {(pipelineMutation.error as Error).message}
               </div>
             )}
 
-            {result && !showAnalysis && !result.retrieval_ok && (
-              <div className="rounded-[10px] px-[15px] py-[13px] text-[13px] leading-[1.6] bg-[#fff8e1] border border-[#ffe082] text-[#7a5b0b] mb-3">
+            {result && !result.retrieval_ok && (
+              <div className="notice warn">
                 <div>
                   ⚠ 가장 비슷한 기존 질문의 유사도({(result.similarity * 100).toFixed(1)}%)가 설정한
                   임계값({(similarityThreshold * 100).toFixed(1)}%)보다 낮습니다 — 아래 추천은 신뢰도가
@@ -172,22 +195,18 @@ function MainApp() {
               </div>
             )}
 
-            {result && !showAnalysis && (
-              <RecommendedGlossesTable
-                glosses={result.recommended_glosses} matchedQuestion={result.matched_question}
-                answers={result.retrieval_candidates.map((c) => c.answer)}
-                stageLabel={result.top_stage.label} subLabel={result.top_sub.label}
-                evidenceMinScore={result.evidence_min_score}
-              />
-            )}
-
-            {result && showAnalysis && (
-              <AnalysisPanel
-                result={result}
-                embOptions={embModelsQuery.data?.options ?? []}
-                embModel={embModel} onEmbModelChange={setEmbModel}
-                similarityThreshold={similarityThreshold} onSimilarityThresholdChange={setSimilarityThreshold}
-              />
+            {result && (
+              <div className="card" id="resultCard">
+                <div className="result-head">
+                  <span className="result-label">핵심 표제어 {result.table_rows.length}개</span>
+                  <span className="result-meta">{result.top_stage.label} · {result.top_sub.label}</span>
+                </div>
+                <RecommendationStats stats={result.stats} />
+                <RecommendedGlossesTable
+                  rows={result.table_rows} matchedQuestion={result.matched_question}
+                />
+                <ResultJsonViewer requestBody={lastRequest} resultBody={result.keywords_envelope} />
+              </div>
             )}
           </>
         )}

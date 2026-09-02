@@ -2,42 +2,20 @@ import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { RecentOutputEntry } from '../api/types'
-
-const CATEGORY_PREFIX = '일상생활 수어 > '
-const stripCategory = (c: string) => (c.startsWith(CATEGORY_PREFIX) ? c.slice(CATEGORY_PREFIX.length) : c)
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-[var(--mh-surface-2)] rounded-[10px] px-[15px] py-[13px] min-h-[72px] flex flex-col justify-center gap-1">
-      <span className="text-lg font-extrabold tabular-nums whitespace-nowrap">{value}</span>
-      <span className="text-xs text-[var(--mh-muted-2)]">{label}</span>
-    </div>
-  )
-}
+import { stripCategory } from '../utils/gloss'
 
 function SortTh({
-  label, active, dir, onClick, align = 'left', className = '',
+  label, active, dir, onClick, className = '',
 }: {
-  label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right'; className?: string
+  label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void; className?: string
 }) {
   return (
-    <th
-      className={
-        `font-bold px-3 py-2 whitespace-nowrap cursor-pointer select-none hover:text-[var(--mh-text)] ${className} ` +
-        (align === 'right' ? 'text-right' : 'text-left')
-      }
-      onClick={onClick}
-    >
-      <span className={'inline-flex items-center gap-1' + (align === 'right' ? ' flex-row-reverse' : '')}>
-        {label}
-        {/* 글자를 껐다 켜지 않고 항상 렌더링한 채 opacity만 바꾼다 - 없다가 생기면 그 글자의 줄
-            높이만큼 헤더 행 높이가 미세하게 바뀌면서 화면이 흔들린다(정렬 클릭할 때마다 재현됨). */}
-        <span
-          className="text-[9px] w-2.5 inline-block leading-none text-[var(--mh-accent)]"
-          style={{ opacity: active ? 1 : 0 }}
-        >
-          {dir === 'asc' ? '▲' : '▼'}
-        </span>
+    <th className={className} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={onClick}>
+      {label}
+      {/* 글자를 껐다 켜지 않고 항상 렌더링한 채 opacity만 바꾼다 - 없다가 생기면 그 글자의 줄
+          높이만큼 헤더 행 높이가 미세하게 바뀌면서 화면이 흔들린다(정렬 클릭할 때마다 재현됨). */}
+      <span style={{ display: 'inline-block', width: 10, fontSize: 9, opacity: active ? 1 : 0 }}>
+        {dir === 'asc' ? '▲' : '▼'}
       </span>
     </th>
   )
@@ -45,51 +23,40 @@ function SortTh({
 
 function Section({ title, note, children }: { title: string; note?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl p-[18px] shadow-[var(--mh-card-shadow)]">
-      <div className="text-[13px] font-extrabold mb-1">{title}</div>
-      {note && <div className="text-xs text-[var(--mh-muted-2)] mb-3 space-y-0.5">{note}</div>}
+    <div className="card">
+      <div className="card-title">{title}</div>
       {children}
+      {note && <div className="card-note">{note}</div>}
     </div>
   )
 }
 
-function timeAgo(ts: number): string {
-  const sec = Math.max(0, Math.round((Date.now() - ts) / 1000))
-  if (sec < 60) return '방금'
-  if (sec < 3600) return `${Math.floor(sec / 60)}분 전`
-  if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`
-  return `${Math.floor(sec / 86400)}일 전`
-}
-
+/** 163.239.25.74:8777의 catalog.html "최근 출력 글로스 · ID 목록"과 같은 형태 — 최근 결과
+ * 이력 전체가 아니라 가장 최근 실행 1건만, 표(.compact-table)로 보여준다. */
 function RecentOutputs({ entries }: { entries: RecentOutputEntry[] }) {
   if (entries.length === 0) {
-    return <div className="text-xs text-[var(--mh-muted-2)]">추천 화면에서 질문을 실행하면 여기에 최근 결과가 쌓입니다.</div>
+    return <div className="empty-note">추천 화면에서 질문을 실행하면 여기에 최근 출력 목록이 표시됩니다.</div>
   }
+  const latest = entries[0]
   return (
-    <div className="flex flex-col gap-2.5 max-h-[320px] overflow-auto">
-      {entries.map((e, i) => (
-        <div key={i} className="border border-[var(--mh-border)] rounded-lg px-3 py-2.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] font-semibold truncate">{e.question}</span>
-            <span className="text-[11px] text-[var(--mh-muted-2)] shrink-0">{timeAgo(e.timestamp)}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {e.glosses.length === 0 && <span className="text-xs text-[var(--mh-muted-2)]">표현 가능한 글로스 없음</span>}
-            {e.glosses.map((g) => (
-              <span
-                key={g.origin_number}
-                className={
-                  'text-xs font-semibold rounded-full px-2.5 py-1 ' +
-                  (g.is_exact ? 'bg-[#1a7f37] text-white' : 'bg-[var(--mh-surface-2)] border border-[var(--mh-border)]')
-                }
-              >
-                {g.name.split(',')[0]} <span className="opacity-70 tabular-nums">{g.origin_number}</span>
-              </span>
+    <>
+      <div className="latest-question">{latest.question} · {latest.stage} / {latest.subCategory}</div>
+      <div className="table-scroll">
+        <table className="table compact-table">
+          <thead><tr><th>#</th><th>글로스</th><th>ID</th><th>스코어</th></tr></thead>
+          <tbody>
+            {latest.glosses.map((g, i) => (
+              <tr key={g.glossId}>
+                <td className="row-number">{i + 1}</td>
+                <td className="gl">{g.keyword}</td>
+                <td>{g.glossId}</td>
+                <td>{g.score.toFixed(4)}</td>
+              </tr>
             ))}
-          </div>
-        </div>
-      ))}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
@@ -115,7 +82,11 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
   const filtered = useMemo(() => {
     if (!dictQuery.data) return []
     const q = search.trim()
-    const rows = q ? dictQuery.data.glosses.filter((g) => g.name.includes(q) || String(g.origin_number).includes(q)) : dictQuery.data.glosses
+    const rows = q
+      ? dictQuery.data.glosses.filter(
+          (g) => g.name.includes(q) || String(g.origin_number).includes(q) || stripCategory(g.category).includes(q),
+        )
+      : dictQuery.data.glosses
     const sorted = [...rows].sort((a, b) => {
       const cmp =
         sortKey === 'origin_number' ? a.origin_number - b.origin_number
@@ -134,61 +105,65 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
   const answerTotal = subRows.reduce((s, r) => s + r.답변, 0)
 
   return (
-    <div className="flex flex-col gap-[18px]">
+    <>
       <Section
         title="전체 현황"
         note={
-          <ul className="list-disc pl-4 space-y-0.5">
-            <li>의미 부류: 표제어가 속한 의미 영역 (신체·시간·감정 등)</li>
-            <li>아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값</li>
-            <li>배정: 구체적인 분류 있음 / 미배정: "기타"로만 남음</li>
-          </ul>
+          <>
+            <div>의미 부류: 표제어가 속한 의미 영역 (신체·시간·감정 등) — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값</div>
+            <div>배정: 구체적인 분류 있음 / 미배정: "기타"로만 남음</div>
+            <div>질문/답변 수는 검색에 실제 쓰이는 원본 코퍼스(증강 제외) 기준입니다.</div>
+          </>
         }
       >
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          <StatCard label="전체 글로스" value={`${total}개`} />
-          <StatCard label="의미 부류 배정" value={`${total - unassigned}개`} />
-          <StatCard label="미배정 글로스" value={`${unassigned}개`} />
-          <StatCard label="문진단계" value={`${stageCount}개`} />
-          <StatCard label="세부분류" value={`${subRows.length}개`} />
-          <StatCard label="질문 / 답변" value={`${questionTotal} / ${answerTotal}`} />
+        <div className="stat-grid">
+          <div className="stat-card"><span>전체 글로스</span><strong>{total}</strong><small>개</small></div>
+          <div className="stat-card"><span>의미 부류 배정</span><strong>{total - unassigned}</strong><small>개</small></div>
+          <div className="stat-card"><span>미배정 글로스</span><strong>{unassigned}</strong><small>개</small></div>
+          <div className="stat-card"><span>문진단계</span><strong>{stageCount}</strong><small>개</small></div>
+          <div className="stat-card"><span>세부분류</span><strong>{subRows.length}</strong><small>개</small></div>
+          <div className="stat-card"><span>질문 / 답변</span><strong>{questionTotal} / {answerTotal}</strong></div>
         </div>
       </Section>
 
-      <Section title="최근 출력 글로스" note="추천 화면 실행 결과가 최신순으로 쌓입니다(이 브라우저에만 저장됨, 최대 20건).">
+      <Section title="최근 출력 글로스 · ID 목록" note="최근 추천 결과와 별도로 글로스, ID, 스코어만 확인합니다.">
         <RecentOutputs entries={recentOutputs} />
       </Section>
 
-      <Section title={`문진단계 · 세부분류 (${subRows.length}개)`}>
-        {subStatsQuery.isPending && <div className="text-xs text-[var(--mh-muted-2)]">불러오는 중...</div>}
-        {subStatsQuery.isError && <div className="text-xs text-red-600">불러오기 실패 — {(subStatsQuery.error as Error).message}</div>}
+      <Section
+        title={`모든 문진단계·세부분류 (${subRows.length}개)`}
+        note={subRows.length > 0 && (
+          <>
+            <div>
+              주/보조 의미 부류는 세부분류 {subRows.length}개 이름만 보고 LLM이 도메인 상식으로 한 번 추정해
+              채운 고정값입니다 — 코퍼스 통계나 별도 추출 모델로 검증한 값이 아니며, 질문마다 실행 중
+              계산되지도 않습니다.
+            </div>
+            <div>위 "전체 현황"의 의미 부류(글로스 자체의 분류)와는 다른 축입니다.</div>
+          </>
+        )}
+      >
+        {subStatsQuery.isPending && <div className="empty-note">불러오는 중...</div>}
+        {subStatsQuery.isError && <div className="notice error">불러오기 실패 — {(subStatsQuery.error as Error).message}</div>}
         {subRows.length > 0 && (
-          <div className="overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
-            <table className="w-full text-sm table-fixed">
-              <colgroup>
-                <col className="w-10" />
-                <col className="w-[30%]" />
-                <col />
-                <col className="w-16" />
-                <col className="w-16" />
-              </colgroup>
-              <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
-                <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
-                  <th className="text-right font-bold px-2 py-2">#</th>
-                  <th className="text-left font-bold px-3 py-2">문진단계</th>
-                  <th className="text-left font-bold px-3 py-2">세부분류</th>
-                  <th className="text-right font-bold px-3 py-2">질문</th>
-                  <th className="text-right font-bold px-3 py-2">답변</th>
+          <div className="table-scroll stage-table-scroll">
+            <table className="table stage-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>문진단계</th><th>세부분류</th><th>질문</th><th>답변</th>
+                  <th>주 의미 부류</th><th>보조 의미 부류</th>
                 </tr>
               </thead>
               <tbody>
                 {subRows.map((r, i) => (
-                  <tr key={`${r.단계}-${r.세부분류}`} className="border-t border-[var(--mh-border)]">
-                    <td className="align-top text-right px-2 py-2 tabular-nums text-[var(--mh-muted-2)]">{i + 1}</td>
-                    <td className="align-top px-3 py-2">{r.단계}</td>
-                    <td className="align-top px-3 py-2 font-mono text-xs text-[var(--mh-muted)]">{r.세부분류}</td>
-                    <td className="align-top text-right px-3 py-2 tabular-nums">{r.질문}</td>
-                    <td className="align-top text-right px-3 py-2 tabular-nums">{r.답변}</td>
+                  <tr key={`${r.단계}-${r.세부분류}`}>
+                    <td className="row-number">{i + 1}</td>
+                    <td><strong>{r.단계}</strong></td>
+                    <td>{r.세부분류}</td>
+                    <td>{r.질문}</td>
+                    <td>{r.답변}</td>
+                    <td>{r.primary_role || '-'}</td>
+                    <td>{r.secondary_roles.length > 0 ? r.secondary_roles.join(', ') : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -197,50 +172,50 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
         )}
       </Section>
 
-      <div className="bg-[var(--mh-surface)] border border-[var(--mh-border)] rounded-xl overflow-hidden shadow-[var(--mh-card-shadow)]">
-        <div className="p-[18px] pb-3">
-          <div className="text-[13px] font-extrabold mb-3">전체 글로스 DB ({filtered.length}개{search && ` / ${total}개 중`})</div>
+      <div className="card">
+        <div className="card-title">전체 글로스 DB ({filtered.length}개{search && ` / ${total}개 중`})</div>
+        <div className="catalog-toolbar">
           <input
             aria-label="표제어 검색"
-            className="w-full border-[1.5px] border-[var(--mh-border)] rounded-[10px] px-[15px] py-2.5 text-sm outline-none focus:border-[var(--mh-accent)]"
-            placeholder="표제어 이름 또는 인덱스로 검색"
+            type="search"
+            placeholder="글로스, ID, 분류 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <span>{filtered.length}개 표시</span>
         </div>
-        {dictQuery.isPending && <div className="px-[18px] pb-[18px] text-sm text-[var(--mh-muted)]">불러오는 중...</div>}
-        {dictQuery.isError && <div className="px-[18px] pb-[18px] text-sm text-red-600">불러오기 실패 — {(dictQuery.error as Error).message}</div>}
+        {dictQuery.isPending && <div className="empty-note">불러오는 중...</div>}
+        {dictQuery.isError && <div className="notice error">불러오기 실패 — {(dictQuery.error as Error).message}</div>}
         {dictQuery.data && (
-          <div ref={dbScrollRef} className="mx-[18px] mb-[18px] overflow-auto max-h-[420px] border border-[var(--mh-border)] rounded-lg">
-            <table className="w-full text-sm table-fixed">
-              <colgroup>
-                <col className="w-20" />
-                <col />
-                <col className="w-[38%]" />
-              </colgroup>
-              <thead className="sticky top-0 bg-[var(--mh-surface-2)]">
-                <tr className="text-xs text-[var(--mh-muted)] uppercase tracking-wide">
-                  <SortTh
-                    label="인덱스" align="right"
-                    active={sortKey === 'origin_number'} dir={sortDir} onClick={() => toggleSort('origin_number')}
-                  />
-                  <SortTh label="표제어" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+          <div ref={dbScrollRef} className="table-scroll catalog-table-scroll">
+            <table className="table catalog-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <SortTh label="ID" active={sortKey === 'origin_number'} dir={sortDir} onClick={() => toggleSort('origin_number')} />
+                  <SortTh label="글로스" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+                  <th>유의어</th>
                   <SortTh label="분류" active={sortKey === 'category'} dir={sortDir} onClick={() => toggleSort('category')} />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((g) => (
-                  <tr key={g.origin_number} className="border-t border-[var(--mh-border)]">
-                    <td className="align-top text-right px-3 py-2 tabular-nums text-[var(--mh-muted-2)] whitespace-nowrap">{g.origin_number}</td>
-                    <td className="align-top px-3 py-2 font-semibold">{g.name}</td>
-                    <td className="align-top px-3 py-2 text-[var(--mh-muted)]">{stripCategory(g.category)}</td>
-                  </tr>
-                ))}
+                {filtered.map((g, i) => {
+                  const [first, ...rest] = g.name.split(',')
+                  return (
+                    <tr key={g.origin_number}>
+                      <td className="row-number">{i + 1}</td>
+                      <td>{g.origin_number}</td>
+                      <td className="gl">{first}</td>
+                      <td>{rest.join(', ') || '-'}</td>
+                      <td>{stripCategory(g.category)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }

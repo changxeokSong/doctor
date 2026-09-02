@@ -17,6 +17,8 @@ export interface RagMatch {
   matched_stage: string
   matched_subcategory: string
   similarity: number
+  candidate_count: number
+  corpus_count: number
   examples: RagExample[]
 }
 
@@ -38,22 +40,27 @@ export interface CandidateKeyword {
   end: number | null
   no_gloss: boolean
   gloss_exact: GlossHit | null
+  gloss_top: GlossHit | null
 }
 
-export interface GlossEvidence {
-  answer_index: number
-  keyword: string
-  score: number
-  start: number | null
-  end: number | null
-}
+export type GlossSource = 'answer_evidence' | 'intent_expansion'
 
 export interface RecommendedGloss {
-  name: string
-  origin_number: number
+  keyword: string
+  glossId: number
   score: number
-  is_exact: boolean
-  evidence: GlossEvidence[]
+  source: GlossSource
+}
+
+export interface GlossTableRow {
+  keyword: string
+  glossId: number
+  score: number
+  category: string
+  source: GlossSource
+  evidenceSentence: string
+  evidenceStart: number | null
+  evidenceEnd: number | null
 }
 
 export interface GlossApiResult {
@@ -85,6 +92,96 @@ export interface GroundTruth {
   subcategory: string
 }
 
+export interface PipelineStats {
+  final_count: number
+  evidence_count: number
+  expansion_count: number
+  dropped_count: number
+  answers_total: number
+  answers_resolved: number
+  total_ms: number
+}
+
+export interface ExcludedGloss {
+  keyword: string
+  glossId: number
+  score: number
+  category: string
+}
+
+export interface AnalysisClassification {
+  question: string
+  predictedStage: string
+  predictedStageProb: number
+  predictedSub: string
+  predictedSubProb: number
+  usedStage: string
+  usedSub: string
+  subMargin: number
+  searchedSubs: string[]
+  path: string
+  reason: string
+  latencyMs: number
+}
+
+export interface AnalysisRetrieval {
+  matchedQuestion: string | null
+  matchedQuestionSource: string | null
+  similarity: number
+  similarityThreshold: number
+  retrievalOk: boolean
+  usedFilter: boolean
+  candidateCount: number
+  corpusCount: number
+  latencyMs: number
+}
+
+export interface AnalysisAnswerPool {
+  total: number
+  keywordFound: number
+  noGlossCount: number
+  resolved: number
+  sources: { source: string; count: number }[]
+  latencyMs: number
+}
+
+export interface AnalysisCutoff {
+  minScore: number
+  topPercentile: number
+  excludedCount: number
+  // 사전 전체가 아니라 상위 일부 표본만 온다 - 개수는 excludedCount를 써야 한다.
+  excludedSample: ExcludedGloss[]
+  latencyMs: number
+}
+
+export interface AnalysisLatency {
+  classifyMs: number
+  retrieveMs: number
+  keywordExtractMs: number
+  glossScoringMs: number
+  totalMs: number
+}
+
+export interface PipelineAnalysis {
+  classification: AnalysisClassification
+  retrieval: AnalysisRetrieval
+  answerPool: AnalysisAnswerPool
+  cutoff: AnalysisCutoff
+  latency: AnalysisLatency
+}
+
+export interface KeywordsEnvelope {
+  question: string
+  stage: string
+  subCategory: string
+  count: number
+  keywords: RecommendedGloss[]
+  output: [string, number][]
+  tuples: [number, string, number][]
+  pairs: [string, number][]
+  idPairs: [number, number][]
+}
+
 export interface PipelineResult {
   stage_results: LabelProb[]
   sub_results: LabelProb[]
@@ -97,7 +194,11 @@ export interface PipelineResult {
   matched_question_source: string | null
   retrieval_candidates: Candidate[]
   recommended_glosses: RecommendedGloss[]
+  table_rows: GlossTableRow[]
   evidence_min_score: number
+  stats: PipelineStats
+  analysis: PipelineAnalysis
+  keywords_envelope: KeywordsEnvelope
   ground_truth: GroundTruth | null
   emb_model_used: EmbModelUsed
   timing: PipelineTiming
@@ -144,14 +245,16 @@ export interface DatasetStatsRow {
 }
 
 export interface RecentOutputGloss {
-  origin_number: number
-  name: string
+  glossId: number
+  keyword: string
   score: number
-  is_exact: boolean
+  source: GlossSource
 }
 
 export interface RecentOutputEntry {
   question: string
+  stage: string
+  subCategory: string
   timestamp: number
   glosses: RecentOutputGloss[]
 }
@@ -161,6 +264,9 @@ export interface SubcategoryStatRow {
   세부분류: string
   질문: number
   답변: number
+  // 세부분류별 정적 라벨 - 질문마다 실행 중 계산되는 값이 아니다. 없으면 '-' / 빈 배열.
+  primary_role: string
+  secondary_roles: string[]
 }
 
 export interface LabelListsResult {
