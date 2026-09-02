@@ -222,10 +222,13 @@ export function AnalysisPanel({
         </Row>
         <Row label="컷오프">
           점수 {cutoff.minScore} 이상 (후보 상위 {pct(cutoff.topPercentile)} 지점에서 동적 결정) · 제외 {cutoff.excludedCount}개
+          {cutoff.categoryLeniency > 0 && (
+            <> · 세부분류 우선 카테고리에 속하면 문턱 {cutoff.categoryLeniency}만큼 완화</>
+          )}
         </Row>
-        <Row label="점수 보정">
-          표의 "점수"는 순수 임베딩 유사도가 아닙니다 — 이 세부분류의 우선 카테고리에 속하는 표제어는 컷오프에서
-          아깝게 탈락하지 않도록 소폭 가산된 값입니다(정확일치는 가산 없음). 순위 비교도 이 보정 점수 기준입니다.
+        <Row label="점수 기준">
+          표의 "점수"는 순수 임베딩 유사도입니다 — 값 자체는 조작하지 않고, 우선 카테고리에 속하는
+          표제어만 위 컷오프 문턱을 낮춰 통과시킵니다. 정렬도 이 순수 점수 기준입니다.
         </Row>
         <RankReassignment rows={result.table_rows} />
 

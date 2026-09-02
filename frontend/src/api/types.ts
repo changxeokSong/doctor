@@ -155,6 +155,8 @@ export interface AnalysisAnswerPool {
 export interface AnalysisCutoff {
   minScore: number
   topPercentile: number
+  // 세부분류 우선 카테고리에 속하는 표제어는 문턱이 이만큼 낮다(점수 자체는 순수 유사도 그대로).
+  categoryLeniency: number
   excludedCount: number
   // 사전 전체가 아니라 상위 일부 표본만 온다 - 개수는 excludedCount를 써야 한다.
   excludedSample: ExcludedGloss[]
