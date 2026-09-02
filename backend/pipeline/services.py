@@ -82,11 +82,12 @@ def gloss(keywords, top_k: int, emb_model=None) -> dict:
     }
 
 
-# recommended_glosses는 컷 없이 사전 전체를 스코어순으로 다 반환 - 사용자가 순위를 보고 직접 판단.
 # "표현 가능한 글로스 없음" 판정(카드 단위)에만 쓰는 고정 임계값 - "근거로 인정"은 동적 값(아래) 사용.
 RECOMMENDED_GLOSS_MIN_SCORE = 0.5
 
 EVIDENCE_TOP_PERCENTILE = 0.15  # 상위 15%만 "근거 있음"으로 인정 (30%는 노이즈가 많아 되돌림)
+
+EXCLUDED_SAMPLE_SIZE = 20  # 분석 패널에 보여줄 컷오프 제외 표제어 예시 개수
 
 
 # 세부분류별 실제 매칭 빈도가 높은 Gloss_Category 배치 집계 결과 중, 의미가 맞는 것만 수동 선별.
@@ -135,8 +136,25 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     subcategory 맥락 반영) 하나만 뽑는다. 표제어는 두 층위로 반환:
     (1) 답변 카드별 - 정확일치 여부 + "표현 가능한 글로스 없음" 판정만(유사도 전체 랭킹은
         카드 펼칠 때 /api/gloss/로 지연 요청 - 매번 전체를 채우면 응답이 너무 커짐)
-    (2) 표제어 중심 집계(recommended_glosses) - 여러 답변의 키워드를 표제어(원문 인덱스) 기준으로
-        합쳐 근거와 함께 사전 전체를 스코어순으로 반환(컷 없음 - 순위는 사용자가 직접 판단)."""
+    (2) 표제어 중심 집계 - 여러 답변의 키워드를 표제어(원문 인덱스) 기준으로 합친 뒤, 근거가 남은
+        것(정확일치 또는 동적 임계값 이상)만 스코어순으로 반환. LLM 기반 시스템과 포맷을 맞춘
+        압축형(compact_glosses)과 화면 표시용(table_rows) 두 벌로 낸다."""
+    priority_glosses = SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set())
+    priority_categories = SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set())
+    category_by_origin = gloss_category_by_origin()
+
+    def _matches_priority_category(r: dict) -> bool:
+        return category_by_origin.get(r["origin_number"]) in priority_categories
+
+    CATEGORY_BOOST = 0.05
+
+    def _boost(origin_number: int, score: float, is_exact: bool) -> float:
+        # 세부분류에 맞는 카테고리면 가산 - 정렬 순서만 조정해선 근거 임계값을 살짝 못 넘겨
+        # 통째로 탈락하는 표제어를 못 살린다. 정확일치는 이미 무조건 포함이라 제외.
+        if is_exact or category_by_origin.get(origin_number) not in priority_categories:
+            return score
+        return min(1.0, score + CATEGORY_BOOST)
+
     t0 = time.perf_counter()
     answers = [a for a, _ in answers_with_source]
     tagged_per_answer = []  # answer_idx -> (keyword, confidence, span) | None
@@ -171,7 +189,10 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
         entries = []
         if exact_hit:
             entries.append((exact_hit[0], exact_hit[1], exact_hit[2], True))
-        entries += [(name, origin_number, score, False) for name, origin_number, score in hits]
+        entries += [
+            (name, origin_number, _boost(origin_number, score, False), False)
+            for name, origin_number, score in hits
+        ]
         for name, origin_number, score, is_exact in entries:
             row = agg.get(origin_number)
             if row is None:
@@ -192,7 +213,10 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
         entries = []
         if exact_hit:
             entries.append((exact_hit[0], exact_hit[1], exact_hit[2], True))
-        entries += [(name, origin_number, score, False) for name, origin_number, score in hits]
+        entries += [
+            (name, origin_number, _boost(origin_number, score, False), False)
+            for name, origin_number, score in hits
+        ]
         for name, origin_number, score, is_exact in entries:
             if not (is_exact or score >= evidence_min_score):
                 continue
@@ -208,13 +232,6 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
     # 정렬 우선순위: 정확일치 > 점수(0.1 단위 구간) > 표제어 우선순위(SUBCATEGORY_GLOSS_PRIORITY) >
     # 카테고리 우선순위(SUBCATEGORY_CATEGORY_PRIORITY) > 점수(0.01 단위) > 명사 우선(has_noun).
     # 0.1 단위로 동점 구간을 넓게 잡아야 우선순위 표제어가 실제로 앞으로 올라온다.
-    priority_glosses = SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set())
-    priority_categories = SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set())
-    category_by_origin = gloss_category_by_origin()
-
-    def _matches_priority_category(r: dict) -> bool:
-        return category_by_origin.get(r["origin_number"]) in priority_categories
-
     recommended_glosses = sorted(
         agg.values(),
         key=lambda r: (
@@ -232,6 +249,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             kw, conf, span = tagged
             exact_hit, hits = gloss_by_answer_idx[i]
             no_gloss = not exact_hit and (not hits or hits[0][2] < RECOMMENDED_GLOSS_MIN_SCORE)
+            top_hit = exact_hit or (hits[0] if hits else None)
             kw_results.append({
                 "keyword": kw, "confidence": conf,
                 "start": span[0] if span else None, "end": span[1] if span else None,
@@ -240,10 +258,149 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
                     {"name": exact_hit[0], "origin_number": exact_hit[1], "score": exact_hit[2]}
                     if exact_hit else None
                 ),
+                # 정확일치가 없어도 "키워드 -> 표제어_ID"를 보여줄 수 있게 1순위 후보를 같이 준다.
+                "gloss_top": (
+                    {"name": top_hit[0], "origin_number": top_hit[1], "score": round(top_hit[2], 4)}
+                    if top_hit else None
+                ),
             })
         candidates.append({"answer": ans, "answer_source": ans_src, "keywords": kw_results})
     gloss_ms = (time.perf_counter() - t0) * 1000
-    return candidates, recommended_glosses, keyword_extract_ms, gloss_ms, evidence_min_score
+
+    # LLM 기반 시스템과 형식을 맞춘 압축 포맷. 답변 원문에서 실제로 검출된 키워드로 도달한 것만
+    # 남기므로 source는 항상 answer_evidence - 스키마 호환을 위해 필드는 유지한다.
+    compact_glosses = [
+        {
+            "keyword": r["name"],
+            "glossId": r["origin_number"],
+            "score": round(r["score"], 4),
+            "source": "answer_evidence",
+        }
+        for r in recommended_glosses
+        if r["evidence"]
+    ]
+    # 화면 표시용 - compact_glosses(API 스키마)는 그대로 두고 분류·근거 문장만 덧붙인다.
+    # "의미 부류"(intentRole/intentLabel)는 LLM이 질문 의도를 해석해 붙이는 개념이라 넣지 않는다.
+    table_rows = [
+        {
+            "keyword": r["name"],
+            "glossId": r["origin_number"],
+            "score": round(r["score"], 4),
+            "category": category_by_origin.get(r["origin_number"], "기타"),
+            "source": "answer_evidence",
+            "evidenceSentence": answers[r["evidence"][0]["answer_index"]],
+            # 근거 문장 안에서 실제로 이 표제어를 뽑아낸 위치 - 프론트에서 <mark>로 강조 표시할 때 씀.
+            "evidenceStart": r["evidence"][0]["start"],
+            "evidenceEnd": r["evidence"][0]["end"],
+        }
+        for r in recommended_glosses
+        if r["evidence"]
+    ]
+    # "답변 매핑" 통계 - 채택된 표제어들이 실제로 어느 답변에서 나왔는지(answer_index) 세어
+    # 답변 풀 중 몇 개가 표제어 산출에 기여했는지 본다.
+    resolved_answer_idx = {
+        e["answer_index"] for r in recommended_glosses if r["evidence"] for e in r["evidence"]
+    }
+    excluded = [
+        {
+            "keyword": r["name"],
+            "glossId": r["origin_number"],
+            "score": round(r["score"], 4),
+            "category": category_by_origin.get(r["origin_number"], "기타"),
+        }
+        for r in recommended_glosses
+        if not r["evidence"]
+    ]
+    stats = {
+        "dropped_count": len(excluded),
+        "answers_total": len(answers_with_source),
+        "answers_resolved": len(resolved_answer_idx),
+        "keyword_found": sum(1 for t in tagged_per_answer if t),
+        "no_gloss_count": sum(1 for c in candidates for k in c["keywords"] if k["no_gloss"]),
+        # 제외 목록은 사전 전체 규모(수백 개)라 컷오프에 가장 근접한 순으로 일부만 보낸다.
+        "excluded_sample": sorted(excluded, key=lambda g: -g["score"])[:EXCLUDED_SAMPLE_SIZE],
+    }
+    return candidates, compact_glosses, table_rows, keyword_extract_ms, gloss_ms, evidence_min_score, stats
+
+
+def _build_analysis(
+    *, question, similarity_threshold, stage_results, sub_results, top3_subs,
+    matched_stage, matched_subcategory, matched_question, matched_question_source,
+    best_sim, retrieval_ok, used_filter, candidate_count, corpus_count,
+    answers_with_source, gloss_stats, evidence_min_score, timings,
+) -> dict:
+    """추천 근거 분석 화면 전용 뷰 - 파이프라인이 이미 계산한 중간값을 모아 담기만 한다(재계산 없음).
+    LLM 전용 개념(의도 확장, 답변 생성 latency, provider 설정)은 우리 구조에 없어 담지 않는다."""
+    classify_ms, retrieve_ms, keyword_extract_ms, gloss_ms, total_ms = timings
+    top_stage, top_stage_p = stage_results[0]
+    top_sub, top_sub_p = sub_results[0]
+    sub_margin = top_sub_p - (sub_results[1][1] if len(sub_results) > 1 else 0.0)
+
+    source_counts: dict[str, int] = {}
+    for _, src in answers_with_source:
+        source_counts[src] = source_counts.get(src, 0) + 1
+
+    scope = f"세부분류 상위 3개로 후보 축소({candidate_count}/{corpus_count}건 비교)" if used_filter \
+        else f"후보 부족으로 필터 해제, 코퍼스 전체 {corpus_count}건 비교"
+    if matched_question:
+        verdict = "임계값 통과" if retrieval_ok else f"임계값 {similarity_threshold:.2f} 미달"
+        reason = (f"기존 질문 pool 매칭: '{matched_question}' "
+                  f"(유사도 {best_sim:.3f}, margin {sub_margin:.2f}, {verdict}) · {scope}")
+    else:
+        reason = "매칭된 기존 질문 없음"
+
+    return {
+        "classification": {
+            "question": question,
+            "predictedStage": top_stage,
+            "predictedStageProb": round(top_stage_p, 4),
+            "predictedSub": top_sub,
+            "predictedSubProb": round(top_sub_p, 4),
+            "usedStage": matched_stage,
+            "usedSub": matched_subcategory,
+            "subMargin": round(sub_margin, 4),
+            "searchedSubs": top3_subs,
+            "path": "classifier+retrieval",
+            "reason": reason,
+            "latencyMs": round(classify_ms, 1),
+        },
+        "retrieval": {
+            "matchedQuestion": matched_question,
+            "matchedQuestionSource": matched_question_source,
+            "similarity": round(best_sim, 4),
+            "similarityThreshold": similarity_threshold,
+            "retrievalOk": retrieval_ok,
+            "usedFilter": used_filter,
+            "candidateCount": candidate_count,
+            "corpusCount": corpus_count,
+            "latencyMs": round(retrieve_ms, 1),
+        },
+        "answerPool": {
+            "total": len(answers_with_source),
+            "keywordFound": gloss_stats["keyword_found"],
+            "noGlossCount": gloss_stats["no_gloss_count"],
+            "resolved": gloss_stats["answers_resolved"],
+            "sources": [
+                {"source": s, "count": n}
+                for s, n in sorted(source_counts.items(), key=lambda x: -x[1])
+            ],
+            "latencyMs": round(keyword_extract_ms, 1),
+        },
+        "cutoff": {
+            "minScore": round(evidence_min_score, 3),
+            "topPercentile": EVIDENCE_TOP_PERCENTILE,
+            "excludedCount": gloss_stats["dropped_count"],
+            "excludedSample": gloss_stats["excluded_sample"],
+            "latencyMs": round(gloss_ms, 1),
+        },
+        "latency": {
+            "classifyMs": round(classify_ms, 1),
+            "retrieveMs": round(retrieve_ms, 1),
+            "keywordExtractMs": round(keyword_extract_ms, 1),
+            "glossScoringMs": round(gloss_ms, 1),
+            "totalMs": round(total_ms, 1),
+        },
+    }
 
 
 def run_pipeline(question: str, emb_model, similarity_threshold: float) -> dict:
@@ -274,20 +431,51 @@ def run_pipeline(question: str, emb_model, similarity_threshold: float) -> dict:
     matched_question_source = matches[0]["matched_question_source"] if matches else None
     # 매칭이 top3_subs 중 2·3위에서 왔을 수 있어 top_sub 대신 실제 매칭된 세부분류를 쓴다
     matched_subcategory = matches[0]["matched_subcategory"] if matches else top_sub
+    matched_stage = matches[0]["matched_stage"] if matches else top_stage
+    candidate_count = matches[0]["candidate_count"] if matches else 0
+    corpus_count = matches[0]["corpus_count"] if matches else 0
     retrieve_ms = (time.perf_counter() - t0) * 1000
 
     retrieval_ok = bool(matches) and best_sim >= similarity_threshold
 
     if retrieval_raw:
-        retrieval_candidates, recommended_glosses, keyword_extract_ms, gloss_ms, evidence_min_score = _build_candidates(
+        retrieval_candidates, recommended_glosses, table_rows, keyword_extract_ms, gloss_ms, evidence_min_score, gloss_stats = _build_candidates(
             matched_subcategory, retrieval_raw, model_name
         )
     else:
-        retrieval_candidates, recommended_glosses, keyword_extract_ms, gloss_ms = [], [], 0.0, 0.0
+        retrieval_candidates, recommended_glosses, table_rows, keyword_extract_ms, gloss_ms = [], [], [], 0.0, 0.0
         evidence_min_score = RECOMMENDED_GLOSS_MIN_SCORE
+        gloss_stats = {
+            "dropped_count": 0, "answers_total": 0, "answers_resolved": 0,
+            "keyword_found": 0, "no_gloss_count": 0, "excluded_sample": [],
+        }
 
     total_ms = (time.perf_counter() - t_start) * 1000
     cold_start = _total_cache_misses() > misses_before
+
+    # 남은 표제어는 전부 답변 근거 기반 - 의도 확장(LLM 개념)은 만들지 않으므로 항상 0.
+    evidence_count = len(recommended_glosses)
+    stats = {
+        "final_count": len(recommended_glosses),
+        "evidence_count": evidence_count,
+        "expansion_count": 0,
+        "dropped_count": gloss_stats["dropped_count"],
+        "answers_total": gloss_stats["answers_total"],
+        "answers_resolved": gloss_stats["answers_resolved"],
+        "total_ms": round(total_ms, 1),
+    }
+
+    analysis = _build_analysis(
+        question=question, similarity_threshold=similarity_threshold,
+        stage_results=stage_results, sub_results=sub_results, top3_subs=top3_subs,
+        matched_stage=matched_stage, matched_subcategory=matched_subcategory,
+        matched_question=matched_question, matched_question_source=matched_question_source,
+        best_sim=best_sim, retrieval_ok=retrieval_ok, used_filter=used_filter,
+        candidate_count=candidate_count, corpus_count=corpus_count,
+        answers_with_source=retrieval_raw, gloss_stats=gloss_stats,
+        evidence_min_score=evidence_min_score,
+        timings=(classify_ms, retrieve_ms, keyword_extract_ms, gloss_ms, total_ms),
+    )
 
     return {
         "stage_results": [{"label": l, "prob": p} for l, p in stage_results],
@@ -301,7 +489,23 @@ def run_pipeline(question: str, emb_model, similarity_threshold: float) -> dict:
         "matched_question_source": matched_question_source,
         "retrieval_candidates": retrieval_candidates,
         "recommended_glosses": recommended_glosses,
+        "table_rows": table_rows,
         "evidence_min_score": round(evidence_min_score, 3),
+        "stats": stats,
+        "analysis": analysis,
+        # LLM 기반 시스템과 같은 응답 봉투 - output/tuples/pairs/idPairs는 같은 keywords를 키 조합만
+        # 바꿔 다시 인코딩한 편의 뷰다(다운스트림이 어떤 형태를 쓰든 그대로 받게).
+        "keywords_envelope": {
+            "question": question,
+            "stage": top_stage,
+            "subCategory": matched_subcategory,
+            "count": len(recommended_glosses),
+            "keywords": recommended_glosses,
+            "output": [[f"{g['keyword']}_{g['glossId']}", g['score']] for g in recommended_glosses],
+            "tuples": [[g['glossId'], g['keyword'], g['score']] for g in recommended_glosses],
+            "pairs": [[g['keyword'], g['score']] for g in recommended_glosses],
+            "idPairs": [[g['glossId'], g['score']] for g in recommended_glosses],
+        },
         "ground_truth": ground_truth,
         "emb_model_used": {"model_id": model_name, "label": _model_label(model_name)},
         "timing": {

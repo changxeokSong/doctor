@@ -4,9 +4,9 @@ from functools import lru_cache
 
 import pandas as pd
 
-from app.config import CORPUS_EXCEL
-
-_ORIGINAL_SOURCES = {"추가문진", "기존분리"}
+from app.config import (
+    CORPUS_EXCEL, ORIGINAL_QUESTION_SOURCES, ORIGINAL_ANSWER_SOURCES, SUBCATEGORY_SEMANTIC_ROLES,
+)
 
 _STAGE_ORDER = [
     "진료개시", "통증 부위", "통증강도", "통증 발생시점", "통증 양상", "통증 유발/완화 요인",
@@ -20,17 +20,18 @@ def compute_dataset_stats() -> pd.DataFrame:
     q = pd.read_excel(CORPUS_EXCEL, sheet_name="의사질문_목록")
     a = pd.read_excel(CORPUS_EXCEL, sheet_name="확장문진_답변키워드")
 
-    is_orig = q["질문출처"].isin(_ORIGINAL_SOURCES)
+    is_orig = q["질문출처"].isin(ORIGINAL_QUESTION_SOURCES)
     qid2stage = dict(zip(q["의사질문ID"], q["단계"]))
-    qid2orig = dict(zip(q["의사질문ID"], is_orig))
     a = a.copy()
     a["단계"] = a["의사질문ID"].map(qid2stage)
-    a["기존질문여부"] = a["의사질문ID"].map(qid2orig)
+    # 답변의 기존/증강은 부모 질문이 아니라 답변 자신의 출처로 판정한다 - 원본 질문에 달린
+    # 증강 답변(34건)이 있어, 질문 출처로 세면 검색 코퍼스(retriever)와 수치가 어긋난다.
+    is_orig_answer = a["답변출처"].isin(ORIGINAL_ANSWER_SOURCES)
 
     g_q_orig = q[is_orig].groupby("단계").size()
     g_q_aug = q[~is_orig].groupby("단계").size()
-    g_a_orig = a[a["기존질문여부"]].groupby("단계").size()
-    g_a_aug = a[~a["기존질문여부"]].groupby("단계").size()
+    g_a_orig = a[is_orig_answer].groupby("단계").size()
+    g_a_aug = a[~is_orig_answer].groupby("단계").size()
 
     stages = [s for s in _STAGE_ORDER if s in set(q["단계"])]
     stages += [s for s in q["단계"].drop_duplicates() if s not in stages]
@@ -58,13 +59,15 @@ def compute_dataset_stats() -> pd.DataFrame:
 @lru_cache(maxsize=None)
 def compute_subcategory_stats() -> pd.DataFrame:
     """단계·세부분류 조합별 질문/답변 개수. 같은 세부분류 이름이 여러 단계에서 재사용되므로
-    (예: "lifestyle"이 생활습관/수술 및 입원 이력 둘 다에 있음) 반드시 (단계, 세부분류) 쌍으로 묶는다."""
+    (예: "lifestyle"이 생활습관/수술 및 입원 이력 둘 다에 있음) 반드시 (단계, 세부분류) 쌍으로 묶는다.
+    집계 대상은 retriever.load_corpus()와 같은 원본만 - 화면에 실제 검색 코퍼스 규모가 보여야 한다."""
     q = pd.read_excel(CORPUS_EXCEL, sheet_name="의사질문_목록")
     a = pd.read_excel(CORPUS_EXCEL, sheet_name="확장문진_답변키워드")
 
+    q = q[q["질문출처"].isin(ORIGINAL_QUESTION_SOURCES)]
+    a = a[a["답변출처"].isin(ORIGINAL_ANSWER_SOURCES)].copy()
     qid2stage = dict(zip(q["의사질문ID"], q["단계"]))
     qid2sub = dict(zip(q["의사질문ID"], q["세부분류"]))
-    a = a.copy()
     a["단계"] = a["의사질문ID"].map(qid2stage)
     a["세부분류"] = a["의사질문ID"].map(qid2sub)
 
@@ -72,8 +75,16 @@ def compute_subcategory_stats() -> pd.DataFrame:
     g_a = a.groupby(["단계", "세부분류"]).size()
     pairs = sorted(set(g_q.index) | set(g_a.index))
 
+    default_roles = {"primary": "-", "secondary": []}
     rows = [
-        {"단계": stage, "세부분류": sub, "질문": int(g_q.get((stage, sub), 0)), "답변": int(g_a.get((stage, sub), 0))}
+        {
+            "단계": stage, "세부분류": sub,
+            "질문": int(g_q.get((stage, sub), 0)), "답변": int(g_a.get((stage, sub), 0)),
+            "primary_role": SUBCATEGORY_SEMANTIC_ROLES.get((stage, sub), default_roles)["primary"],
+            "secondary_roles": list(
+                SUBCATEGORY_SEMANTIC_ROLES.get((stage, sub), default_roles)["secondary"]
+            ),
+        }
         for stage, sub in pairs
     ]
     return pd.DataFrame(rows)

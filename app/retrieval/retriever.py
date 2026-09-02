@@ -10,14 +10,21 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from app.config import CORPUS_EXCEL, EMB_MODEL_NAME, MIN_CANDIDATES_FOR_FILTER
+from app.config import (
+    CORPUS_EXCEL, EMB_MODEL_NAME, MIN_CANDIDATES_FOR_FILTER,
+    ORIGINAL_QUESTION_SOURCES, ORIGINAL_ANSWER_SOURCES,
+)
 from app.embedding import load_embedder, cache_suffix, prep_query, prep_passage
 
 
 @lru_cache(maxsize=None)
 def load_corpus(model_name: str = EMB_MODEL_NAME):
+    """검색 코퍼스는 증강분을 빼고 원본만 쓴다 - LLM 기반 시스템과 같은 기본 데이터로 비교하기 위함.
+    원본 질문에 달린 답변이라도 답변 자체가 증강일 수 있어 질문·답변 출처를 각각 거른다."""
     questions_df = pd.read_excel(CORPUS_EXCEL, sheet_name="의사질문_목록")
+    questions_df = questions_df[questions_df["질문출처"].isin(ORIGINAL_QUESTION_SOURCES)].reset_index(drop=True)
     answers_df = pd.read_excel(CORPUS_EXCEL, sheet_name="확장문진_답변키워드")
+    answers_df = answers_df[answers_df["답변출처"].isin(ORIGINAL_ANSWER_SOURCES)].reset_index(drop=True)
 
     if "그룹대표ID" not in questions_df.columns:
         questions_df["그룹대표ID"] = questions_df["의사질문ID"]
@@ -95,6 +102,8 @@ def retrieve_answer(
             "matched_stage": row["단계"],
             "matched_subcategory": row["세부분류"],
             "similarity": float(sim),
+            "candidate_count": int(len(cand_idx)),
+            "corpus_count": int(len(questions_df)),
             "examples": [
                 {"answer": a, "keyword": k, "source": s} for a, k, s in examples[:max_examples]
             ],
