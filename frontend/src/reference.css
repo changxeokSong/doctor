@@ -17,7 +17,15 @@
   padding: 18px; box-shadow: 0 8px 24px rgba(0, 0, 0, .04);
 }
 .card-title { font-size: 13px; font-weight: 800; margin-bottom: 12px; }
-.card-note { font-size: 12px; color: #8e8e93; margin-top: 8px; }
+.card-note { font-size: 12px; color: #8e8e93; margin-top: 8px; line-height: 1.65; }
+/* Tailwind preflight가 p 여백과 ul 불릿을 지워서, 문단/리스트로 쪼갠 설명문은 여기서 되살린다. */
+.card-note p { margin: 0; }
+.card-note p + p, .card-note p + ul, .card-note ul + p { margin-top: 6px; }
+.card-note ul { margin: 0; padding-left: 15px; list-style: disc; }
+.card-note li + li { margin-top: 4px; }
+.card-note strong { color: #636366; font-weight: 700; }
+/* 설명 note가 연달아 붙으면 한 덩어리로 읽히므로 구분선을 넣는다. */
+.card-note + .card-note { margin-top: 10px; padding-top: 9px; border-top: 1px solid #f0f0f5; }
 
 /* 질문 입력 */
 .ask-input {
@@ -101,7 +109,12 @@
 .evidence-row:last-child { border-bottom: none; }
 .evidence-gloss { font-size: 13px; font-weight: 700; color: #1a7f37; word-break: break-all; }
 .evidence-sents { display: flex; flex-direction: column; gap: 3px; }
-.evidence-sent { font-size: 13px; color: #3c3c43; }
+.evidence-sent { font-size: 13px; color: #3c3c43; line-height: 1.6; }
+.evidence-sent p { margin: 0; }
+.evidence-sent p + p, .evidence-sent p + ol, .evidence-sent ol + p { margin-top: 6px; }
+/* ①②③ 기호를 항목 안에 직접 쓰므로 브라우저 기본 번호는 끈다. */
+.evidence-sent ol { margin: 0; padding: 0; list-style: none; }
+.evidence-sent li + li { margin-top: 4px; }
 mark { background: #fff3bf; color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 600; }
 
 @media (max-width: 560px) {
@@ -113,8 +126,8 @@ mark { background: #fff3bf; color: inherit; border-radius: 3px; padding: 0 2px; 
 .notice.error { background: #fff1f0; border: 1px solid #ffc1c0; color: #c0392b; }
 
 /* 분석 페이지 */
-.kv { background: #f5f5f7; border-radius: 10px; padding: 13px 15px; font-size: 13px; color: #3c3c43; }
-.kv div + div { margin-top: 3px; }
+.kv { background: #f5f5f7; border-radius: 10px; padding: 13px 15px; font-size: 13px; color: #3c3c43; line-height: 1.55; }
+.kv div + div { margin-top: 5px; }
 
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 5px; }

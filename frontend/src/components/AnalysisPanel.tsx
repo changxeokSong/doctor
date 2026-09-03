@@ -108,10 +108,14 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
     <>
       <Row label="정렬 방식">{describeOrder(rows)}</Row>
       <Row label="순위 재배정">
-        점수 순위보다 위로 올라온 표제어 {movedUp.length}개 (표제어 우선 {byGloss} · 카테고리 우선 {byCategory}
-        {byPush > 0 && ` · 밀림으로 인한 상승 ${byPush}`}) ·
-        묶음 크기 표제어 우선 {rows.filter((r) => tierOf(r) === 0).length} / 카테고리 우선{' '}
-        {rows.filter((r) => tierOf(r) === 1).length} / 나머지 {rows.filter((r) => tierOf(r) === 2).length}
+        <p>
+          점수 순위보다 위로 올라온 표제어 {movedUp.length}개 — 표제어 우선 {byGloss} · 카테고리 우선{' '}
+          {byCategory}{byPush > 0 && ` · 밀림으로 인한 상승 ${byPush}`}
+        </p>
+        <p>
+          묶음 크기 — 표제어 우선 {rows.filter((r) => tierOf(r) === 0).length} / 카테고리 우선{' '}
+          {rows.filter((r) => tierOf(r) === 1).length} / 나머지 {rows.filter((r) => tierOf(r) === 2).length}
+        </p>
       </Row>
       <details style={{ marginTop: 12, fontSize: 12 }}>
         <summary className="app-link" style={{ cursor: 'pointer' }}>
@@ -137,8 +141,11 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
           </table>
         </div>
         <div className="card-note">
-          우선순위는 세부분류별로 미리 지정된 표제어·분류 목록입니다 — 점수가 조금 낮아도 이 문진 세부분류에서
-          실제로 쓸 표제어를 위로 올립니다. 점수 순서로만 보려면 "글로스·문진 현황" 화면에서 스코어 헤더를 누르세요.
+          <p>
+            우선순위는 세부분류별로 미리 지정된 표제어·분류 목록입니다 — 점수가 조금 낮아도 이 문진
+            세부분류에서 실제로 쓸 표제어를 위로 올립니다.
+          </p>
+          <p>점수 순서로만 보려면 "글로스·문진 현황" 화면에서 스코어 헤더를 누르세요.</p>
         </div>
       </details>
     </>
@@ -201,7 +208,12 @@ export function AnalysisPanel({
 
       <Card
         title="2. 추천 통계"
-        note="추천 표제어는 전부 답변 원문 근거에서 나옵니다 — 질문 의도로 표제어를 늘리거나 의미 부류를 붙이는 단계가 없어 해당 통계도 두지 않습니다."
+        note={
+          <>
+            <p>추천 표제어는 전부 답변 원문 근거에서 나옵니다.</p>
+            <p>질문 의도로 표제어를 늘리거나 의미 부류를 붙이는 단계가 없어 해당 통계도 두지 않습니다.</p>
+          </>
+        }
       >
         <RecommendationStats stats={result.stats} showTitle={false} />
       </Card>
@@ -230,14 +242,22 @@ export function AnalysisPanel({
           답변 키워드와 사전 표제어를 임베딩 유사도로 비교해, 표제어별 최고점으로 집계합니다.
         </Row>
         <Row label="추리는 순서">
-          ① 근거 문턱 {cutoff.minScore} 이상만 남김(후보 상위 {pct(cutoff.topPercentile)} 지점에서 질문마다 동적 결정)
-          → ② 정확일치 &gt; 표제어 우선 &gt; 카테고리 우선 &gt; 나머지 순으로 정렬
-          → ③ 상위 {cutoff.maxCount}개만 표시. 이번 질문에서 최종 {result.table_rows.length}개가 남고 {cutoff.excludedCount}개가 빠졌습니다.
+          <ol>
+            <li>
+              ① 근거 문턱 {cutoff.minScore} 이상만 남김
+              (후보 상위 {pct(cutoff.topPercentile)} 지점에서 질문마다 동적 결정)
+            </li>
+            <li>② 정확일치 &gt; 표제어 우선 &gt; 카테고리 우선 &gt; 나머지 순으로 정렬</li>
+            <li>③ 상위 {cutoff.maxCount}개만 표시</li>
+          </ol>
+          <p>이번 질문에서 최종 {result.table_rows.length}개가 남고 {cutoff.excludedCount}개가 빠졌습니다.</p>
         </Row>
         <Row label="왜 개수로 자르나">
-          절대 점수(예: 0.65 이상)로 자르지 않는 이유는 임베딩 모델마다 유사도 스케일이 다르기 때문입니다 —
-          같은 질문이라도 모델을 바꾸면 특정 점수 이상인 표제어 수가 수십 배까지 차이 납니다.
-          개수로 자르면 어떤 모델을 쓰든 분량이 일정합니다.
+          <p>
+            절대 점수(예: 0.65 이상)로 자르지 않는 이유는 임베딩 모델마다 유사도 스케일이 다르기 때문입니다 —
+            같은 질문이라도 모델을 바꾸면 특정 점수 이상인 표제어 수가 수십 배까지 차이 납니다.
+          </p>
+          <p>개수로 자르면 어떤 모델을 쓰든 분량이 일정합니다.</p>
         </Row>
         <Row label="점수 기준">
           표의 "점수"는 임베딩 유사도 원본입니다 — 가산이나 보정이 전혀 없고, 정렬과 순위 비교도 이 값 그대로입니다.
@@ -318,8 +338,11 @@ export function AnalysisPanel({
             ))}
           </div>
           <div className="card-note">
-            학습에 안 쓴 데이터로 분리 검증(train/valid/test + 5-fold 교차검증) — 정확도 94.93% ± 0.87%p (fold별 93.77~96.35%).
-            검증도 같은 코퍼스 내부라 다른 병원·표현 방식의 새 데이터에도 그대로일지는 별도 확인 필요.
+            <p>
+              학습에 안 쓴 데이터로 분리 검증(train/valid/test + 5-fold 교차검증) — 정확도
+              94.93% ± 0.87%p (fold별 93.77~96.35%).
+            </p>
+            <p>검증도 같은 코퍼스 내부라 다른 병원·표현 방식의 새 데이터에도 그대로일지는 별도 확인 필요.</p>
           </div>
         </details>
       </Card>

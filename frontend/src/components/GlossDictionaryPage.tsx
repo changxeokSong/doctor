@@ -88,12 +88,23 @@ function RecentOutputs({ entries }: { entries: RecentOutputEntry[] }) {
       </div>
       {anyPrioritized && (
         <div className="card-note">
-          기본 순서는 점수순이 아니라 세부분류별 우선순위 규칙을 먼저 따릅니다. "표제어 우선"은 이 표제어의
-          이름(ID)이 이 세부분류용으로 미리 정해둔 목록에 직접 올라있는 경우이고, "카테고리 우선"은 이름은
-          그 목록에 없지만 이 표제어가 속한 분류가 목록에 있는 경우입니다 — 둘 다 사람이 세부분류마다 미리
-          지정해둔 것으로, 지금은 38개 세부분류 중 33개에 있습니다. 규칙이 없어 순수 점수순 그대로인
-          5개는 associated, general, adverse_reaction, sleep, skin_lesion입니다. "스코어" 헤더를 누르면
-          순수 점수 내림차순으로, 다시 누르면 원래 순서로 돌아갑니다.
+          <p>기본 순서는 점수순이 아니라 세부분류별 우선순위 규칙을 먼저 따릅니다.</p>
+          <ul>
+            <li>
+              <strong>표제어 우선</strong> — 이 표제어의 이름(ID)이 이 세부분류용으로 미리 정해둔 목록에
+              직접 올라있는 경우
+            </li>
+            <li>
+              <strong>카테고리 우선</strong> — 이름은 그 목록에 없지만 이 표제어가 속한 분류가 목록에
+              있는 경우
+            </li>
+          </ul>
+          <p>둘 다 사람이 세부분류마다 미리 지정해둔 것으로, 지금은 38개 세부분류 중 33개에 있습니다.</p>
+          <p>
+            규칙이 없어 순수 점수순 그대로인 5개는 associated, general, adverse_reaction, sleep,
+            skin_lesion입니다.
+          </p>
+          <p>"스코어" 헤더를 누르면 순수 점수 내림차순으로, 다시 누르면 원래 순서로 돌아갑니다.</p>
         </div>
       )}
     </>
@@ -149,11 +160,14 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
       <Section
         title="전체 현황"
         note={
-          <>
-            <div>의미 부류: 표제어가 속한 의미 영역 (신체·시간·감정 등) — 아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값</div>
-            <div>배정: 구체적인 분류 있음 / 미배정: "기타"로만 남음</div>
-            <div>질문/답변 수는 검색에 실제 쓰이는 원본 코퍼스(증강 제외) 기준입니다.</div>
-          </>
+          <ul>
+            <li>
+              <strong>의미 부류</strong> — 표제어가 속한 의미 영역 (신체·시간·감정 등).
+              아래 "전체 글로스 DB" 표의 "분류" 컬럼과 같은 값
+            </li>
+            <li><strong>배정</strong> — 구체적인 분류 있음 / <strong>미배정</strong> — "기타"로만 남음</li>
+            <li>질문/답변 수는 검색에 실제 쓰이는 원본 코퍼스(증강 제외) 기준입니다.</li>
+          </ul>
         }
       >
         <div className="stat-grid">
@@ -173,14 +187,14 @@ export function GlossDictionaryPage({ recentOutputs }: { recentOutputs: RecentOu
       <Section
         title={`모든 문진단계·세부분류 (${subRows.length}개)`}
         note={subRows.length > 0 && (
-          <>
-            <div>
-              주/보조 의미 부류는 세부분류 {subRows.length}개 이름만 보고 LLM이 도메인 상식으로 한 번 추정해
-              채운 고정값입니다 — 코퍼스 통계나 별도 추출 모델로 검증한 값이 아니며, 질문마다 실행 중
-              계산되지도 않습니다.
-            </div>
-            <div>위 "전체 현황"의 의미 부류(글로스 자체의 분류)와는 다른 축입니다.</div>
-          </>
+          <ul>
+            <li>
+              주/보조 의미 부류는 세부분류 {subRows.length}개 이름만 보고 LLM이 도메인 상식으로 한 번
+              추정해 채운 고정값입니다.
+            </li>
+            <li>코퍼스 통계나 별도 추출 모델로 검증한 값이 아니며, 질문마다 실행 중 계산되지도 않습니다.</li>
+            <li>위 "전체 현황"의 의미 부류(글로스 자체의 분류)와는 다른 축입니다.</li>
+          </ul>
         )}
       >
         {subStatsQuery.isPending && <div className="empty-note">불러오는 중...</div>}
