@@ -98,20 +98,43 @@ RECOMMENDED_GLOSS_MAX_COUNT = 30
 # 세부분류별 실제 매칭 빈도가 높은 Gloss_Category 배치 집계 결과 중, 의미가 맞는 것만 수동 선별.
 # 전체 세부분류에 기계적으로 적용하지 않는 이유: 흔한 시간부사 등이 무관한 세부분류에서도
 # 임베딩 유사도상 우연히 1위로 잡히는 노이즈가 있어, 의미가 실제로 맞아떨어지는 것만 넣었다.
+# 키는 세부분류 "이름"뿐이라 같은 이름이 여러 단계에서 재사용되면(예: severity가 통증강도/시간대
+# 변화/유발·완화 세 곳) 한쪽에 맞춘 후보가 다른 쪽으로 샌다 - 모든 단계에서 안전한 것만 담았다.
 SUBCATEGORY_CATEGORY_PRIORITY: dict[str, set[str]] = {
     "location": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
     "side": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성", "일상생활 수어 > 개념 > 위치 및 방향"},
     "chief_complaint": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},
     "surgery_site": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},
+    "disc_or_muscle": {"일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},
     "pain_score": {"일상생활 수어 > 개념 > 수"},
     "quality": {"일상생활 수어 > 개념 > 성질"},
+    "severity": {"일상생활 수어 > 개념 > 정도"},
     "prior_treatment": {"일상생활 수어 > 삶 > 치료"},
     "treatment_choice": {"일상생활 수어 > 삶 > 치료"},
+    "surgery_history": {"일상생활 수어 > 삶 > 치료"},
+    "exam_history": {"일상생활 수어 > 삶 > 치료"},
+    "medication_use": {"일상생활 수어 > 삶 > 치료"},
+    "history": {"일상생활 수어 > 삶 > 병과 증상"},
+    "neuro_weakness": {"일상생활 수어 > 삶 > 병과 증상"},
+    "red_flag": {"일상생활 수어 > 삶 > 병과 증상", "일상생활 수어 > 자연 > 날씨 및 온도"},  # 마비·설사 + 열/오한
+    "dental_trigger": {"일상생활 수어 > 식생활 > 식사 및 조리", "일상생활 수어 > 자연 > 날씨 및 온도"},  # 씹기 + 찬 음식
+    "onset": {"일상생활 수어 > 개념 > 시간"},
+    "duration": {"일상생활 수어 > 개념 > 시간"},
+    "surgery_time": {"일상생활 수어 > 개념 > 시간"},
+    "time_variation": {"일상생활 수어 > 개념 > 시간"},
+    "pattern": {"일상생활 수어 > 개념 > 시간"},
+    "frequency": {"일상생활 수어 > 개념 > 시간", "일상생활 수어 > 개념 > 빈도"},
+    "lifestyle": {"일상생활 수어 > 개념 > 시간", "일상생활 수어 > 개념 > 빈도"},  # 음주·흡연 주기
+    "identity": {"일상생활 수어 > 개념 > 시간", "일상생활 수어 > 개념 > 수"},  # 생년월일·연세
+    "swelling": {"일상생활 수어 > 개념 > 시간", "일상생활 수어 > 인간 > 신체 부위 및 내부 구성"},  # 붓는 부위·지속시간
+    "function": {"일상생활 수어 > 인간 > 신체 행위"},
 }
 
 
 # 카테고리보다 한 단계 더 좁힌 표제어 단위 가산점 - 배치 집계에서 의미가 확실히 맞는 것만 수동 선별
 # (카테고리 필터만으로는 못 거르는 우연한 임베딩 매칭이 있어 개별 표제어 단위로 한 번 더 걸렀다).
+# 의미가 맞는 표제어가 "기타" 카테고리에 흩어져 있는 경우(반복/날마다/밤/가만있다 등)는 카테고리로
+# 못 잡아서 여기서만 처리한다.
 SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
     "location": {944, 4302, 537, 12028, 7364, 5468, 6864, 11004},  # 허리/팔꿈치/팔/엉덩이/다리/목/등/갈비뼈
     "side": {6036, 12035},  # 오른쪽/왼쪽
@@ -121,6 +144,29 @@ SUBCATEGORY_GLOSS_PRIORITY: dict[str, set[int]] = {
     "quality": {10635, 8608, 10454, 11085, 7410, 5621, 6836, 11833},  # 부드럽다/강하다/묵직하다/무겁다/두껍다/아프다/날카롭다/답답하다
     "prior_treatment": {4182, 6556, 9525, 10596, 11990},  # 진단/수술/주사/재활/약
     "treatment_choice": {9525, 11990, 6556, 4182, 10596},  # 주사/약/수술/진단/재활
+    "severity": {7957, 6094, 11467, 6032},  # 조금/많다/심하다/적당하다
+    "onset": {8218, 7499, 11307, 3625, 11606, 8303, 245, 7956, 9590},  # 어제/이틀/사흘/열흘/며칠/일주일/지난주/작년/재작년
+    "duration": {24028, 6637, 9297, 6726, 12329, 6934},  # 시간/동안/하루/길다/짧다/계속
+    "frequency": {23865, 12723, 5957, 12415, 7833, 9297, 8303, 11606},  # 매일/날마다/매주/간혹/자주/하루/일주일/며칠
+    "pattern": {6934, 7833, 12723, 23865, 12415, 11814},  # 계속/반복/늘/매일/간혹/되풀이
+    "time_variation": {2231, 8002, 11547, 5577, 11241, 11849, 5025, 7866},  # 아침/오전/낮/새벽/밤/저녁/오후/정오
+    "surgery_time": {7956, 9590},  # 작년/재작년
+    "lifestyle": {6749, 23865, 12723, 5957, 12415, 9297, 8303},  # 담배/매일/날마다/매주/간혹/하루/일주일
+    "occupation": {11500, 7857, 8925, 3903, 1183},  # 노동/운전/운동/달리기/앉다
+    "history": {9862, 10239},  # 질병/혈압
+    "surgery_history": {6556, 4182},  # 수술/진단
+    "exam_history": {4182, 14132},  # 진단/검진
+    "medication_name": {11990},  # 약
+    "medication_use": {11990},  # 약
+    "greeting": {10949},  # 안녕
+    "identity": {9746, 5511},  # 나이/태어나다
+    "neuro_weakness": {11238, 8014},  # 힘/약하다
+    "red_flag": {6275, 651, 11875, 7491, 9670},  # 마비/소변/설사/뜨겁다/춥다
+    "dental_trigger": {9670, 10419},  # 차다/먹다
+    "sensory_trigger": {9351, 11916, 3762, 12779, 1183, 11514},  # 가만히/멈추다/걷다/눕다/앉다/일어나다
+    "trigger_posture": {9351, 11916, 12779, 11514, 1183, 6281},  # 가만히/멈추다/눕다/일어나다/앉다/머무르다
+    "treatment_effect": {6573, 6001},  # 쉬다/줄다
+    "function": {3762, 10270, 11500, 4463, 11796, 6929},  # 걷다/발걸음/일/오르다/가다/계단
 }
 
 
@@ -136,23 +182,20 @@ def _dynamic_evidence_min_score(agg: dict) -> float:
     return max(RECOMMENDED_GLOSS_MIN_SCORE, min(dynamic, 0.9))
 
 
-def _build_candidates(subcategory: str, answers_with_source: list, model_name: str):
-    """답변 후보 여러 개의 키워드+표제어 매핑을 한 번에 만든다. 답변마다 대표 키워드(SpanTagger,
-    subcategory 맥락 반영) 하나만 뽑는다. 표제어는 두 층위로 반환:
-    (1) 답변 카드별 - 정확일치 여부 + "표현 가능한 글로스 없음" 판정만(유사도 전체 랭킹은
-        카드 펼칠 때 /api/gloss/로 지연 요청 - 매번 전체를 채우면 응답이 너무 커짐)
-    (2) 표제어 중심 집계 - 여러 답변의 키워드를 표제어(원문 인덱스) 기준으로 합친 뒤, 근거가 남은
-        것(정확일치 또는 동적 임계값 이상)만 스코어순으로 반환. LLM 기반 시스템과 포맷을 맞춘
-        압축형(compact_glosses)과 화면 표시용(table_rows) 두 벌로 낸다."""
-    priority_glosses = SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set())
-    priority_categories = SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set())
-    category_by_origin = gloss_category_by_origin()
+# 정렬 키가 점수보다 우선순위를 먼저 보므로, 어느 규칙 때문에 순서가 뒤집혔는지 화면에 알려줘야 한다.
+# 표제어 우선순위가 카테고리보다 정렬 키에서 앞서므로 둘 다 걸리면 gloss로 본다.
+def _priority_kind(subcategory: str, r: dict) -> str | None:
+    if r["origin_number"] in SUBCATEGORY_GLOSS_PRIORITY.get(subcategory, set()):
+        return "gloss"
+    category = gloss_category_by_origin().get(r["origin_number"])
+    return "category" if category in SUBCATEGORY_CATEGORY_PRIORITY.get(subcategory, set()) else None
 
-    def _matches_priority_category(r: dict) -> bool:
-        return category_by_origin.get(r["origin_number"]) in priority_categories
 
+def _rank_gloss_rows(subcategory: str, answers: list, model_name: str):
+    """답변마다 대표 키워드 하나(SpanTagger, subcategory 맥락 반영)를 뽑아 표제어 후보를 모으고,
+    동적 문턱 이상만 근거로 남긴 뒤 정렬한다. 분석 스크립트(scripts/analysis/)도 라이브 파이프라인과
+    같은 기준으로 집계하려고 이 함수를 그대로 재사용한다."""
     t0 = time.perf_counter()
-    answers = [a for a, _ in answers_with_source]
     tagged_per_answer = []  # answer_idx -> (keyword, confidence, span) | None
     for ans in answers:
         kw, conf, s, e = extract_keyword_learned(subcategory, ans)
@@ -225,11 +268,31 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
         agg.values(),
         key=lambda r: (
             -r["is_exact"],
-            0 if r["origin_number"] in priority_glosses else 1 if _matches_priority_category(r) else 2,
+            {"gloss": 0, "category": 1, None: 2}[_priority_kind(subcategory, r)],
             -r["score"],
         ),
     )
+    gloss_ms = (time.perf_counter() - t0) * 1000
+    return (tagged_per_answer, gloss_by_answer_idx, recommended_glosses,
+            evidence_min_score, keyword_extract_ms, gloss_ms)
 
+
+def _build_candidates(subcategory: str, answers_with_source: list, model_name: str):
+    """답변 후보 여러 개의 키워드+표제어 매핑을 한 번에 만든다(_rank_gloss_rows 결과를 응답 형태로
+    변환). 표제어는 두 층위로 반환:
+    (1) 답변 카드별 - 정확일치 여부 + "표현 가능한 글로스 없음" 판정만(유사도 전체 랭킹은
+        카드 펼칠 때 /api/gloss/로 지연 요청 - 매번 전체를 채우면 응답이 너무 커짐)
+    (2) 표제어 중심 집계 - 여러 답변의 키워드를 표제어(원문 인덱스) 기준으로 합친 뒤, 근거가 남은
+        것(정확일치 또는 동적 임계값 이상)만 스코어순으로 반환. LLM 기반 시스템과 포맷을 맞춘
+        압축형(compact_glosses)과 화면 표시용(table_rows) 두 벌로 낸다."""
+    answers = [a for a, _ in answers_with_source]
+    (tagged_per_answer, gloss_by_answer_idx, recommended_glosses,
+     evidence_min_score, keyword_extract_ms, gloss_ms) = _rank_gloss_rows(
+        subcategory, answers, model_name,
+    )
+    category_by_origin = gloss_category_by_origin()
+
+    t0 = time.perf_counter()
     candidates = []
     for i, ((ans, ans_src), tagged) in enumerate(zip(answers_with_source, tagged_per_answer)):
         kw_results = []
@@ -253,15 +316,7 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
                 ),
             })
         candidates.append({"answer": ans, "answer_source": ans_src, "keywords": kw_results})
-    gloss_ms = (time.perf_counter() - t0) * 1000
-
-    # 점수 순서를 거슬러 앞당겨진 행 표시용 - 정렬 키가 점수보다 우선순위를 먼저 보기 때문에
-    # 화면에서 순서가 뒤집혀 보이는 이유를 알려줘야 한다. 표제어 우선순위가 카테고리 우선순위보다
-    # 정렬 키에서 앞서므로 둘 다 걸리면 gloss로 본다(같은 배지끼리의 역전까지 설명돼야 함).
-    def _priority_kind(r: dict) -> str | None:
-        if r["origin_number"] in priority_glosses:
-            return "gloss"
-        return "category" if _matches_priority_category(r) else None
+    gloss_ms += (time.perf_counter() - t0) * 1000
 
     with_evidence = [r for r in recommended_glosses if r["evidence"]]
     shown = with_evidence[:RECOMMENDED_GLOSS_MAX_COUNT]
@@ -274,8 +329,8 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "glossId": r["origin_number"],
             "score": round(r["score"], 4),
             "source": "answer_evidence",
-            "prioritized": _priority_kind(r) is not None,
-            "priorityKind": _priority_kind(r),
+            "prioritized": _priority_kind(subcategory, r) is not None,
+            "priorityKind": _priority_kind(subcategory, r),
         }
         for r in shown
     ]
@@ -288,8 +343,8 @@ def _build_candidates(subcategory: str, answers_with_source: list, model_name: s
             "score": round(r["score"], 4),
             "category": category_by_origin.get(r["origin_number"], "기타"),
             "source": "answer_evidence",
-            "prioritized": _priority_kind(r) is not None,
-            "priorityKind": _priority_kind(r),
+            "prioritized": _priority_kind(subcategory, r) is not None,
+            "priorityKind": _priority_kind(subcategory, r),
             "evidenceSentence": answers[r["evidence"][0]["answer_index"]],
             # 근거 문장 안에서 실제로 이 표제어를 뽑아낸 위치 - 프론트에서 <mark>로 강조 표시할 때 씀.
             "evidenceStart": r["evidence"][0]["start"],

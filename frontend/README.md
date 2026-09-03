@@ -63,8 +63,10 @@ npm run lint  # oxlint
 
 - **표제어 우선** — `SUBCATEGORY_GLOSS_PRIORITY`. 세부분류별로 지정해둔 표제어 ID 목록.
 - **카테고리 우선** — `SUBCATEGORY_CATEGORY_PRIORITY`. 세부분류에 어울리는 글로스 분류.
-- 둘 다 **49개 세부분류 중 8개에만** 정의돼 있다(location, side, chief_complaint, surgery_site,
-  pain_score, quality, prior_treatment, treatment_choice). 나머지 41개는 순수 점수순 그대로다.
+- 둘 다 **38개 세부분류 중 33개에** 정의돼 있다(전체 목록은 `backend/pipeline/services.py`의
+  두 상수 참고). 규칙이 없는 5개(associated, general, adverse_reaction, sleep, skin_lesion)는
+  순수 점수순 그대로다 — 단계마다 이름이 재사용되는데 한쪽 단계에만 맞는 후보라 일부러 제외했다.
+  (단계)×(세부분류) 조합 기준으로는 48개 중 41개에 적용된다.
 - 그래서 점수가 낮은 표제어가 높은 표제어보다 위에 오는 일이 생긴다 — 버그가 아니라 이 규칙 때문이다.
 
 `AnalysisPanel.describeOrder()`는 이 문구를 **하드코딩하지 않고 응답 순서에서 역으로 판별한다** —

@@ -92,7 +92,7 @@ function RankReassignment({ rows }: { rows: GlossTableRow[] }) {
   const byPush = movedUp.length - byGloss - byCategory
   const top = [...moves].filter((m) => m.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)
 
-  // 우선순위 목록이 없는 세부분류(49개 중 41개)에선 재배정이 0건이지만, 정렬 방식 설명은 그대로 보여준다.
+  // 우선순위 목록이 없는 세부분류(38개 중 5개)에선 재배정이 0건이지만, 정렬 방식 설명은 그대로 보여준다.
   if (movedUp.length === 0) {
     return (
       <>
