@@ -20,10 +20,9 @@ cd doctor
 
 ## 모델 준비
 
-git에 없는 두 폴더를 저장소 루트의 같은 경로에 그대로 채워넣는다.
+git에 없는 models 폴더를 저장소 루트의 같은 경로에 그대로 채워넣는다.
 
-- `models/deployed/model_final/` — 문진단계·세부분류 분류기
-- `models/experiments/keyword_extractor_model_v2_deployed_until_20260725_backup/` — 답변 키워드 추출기
+- "\\mldisk2\nfs_shared\scs\models"
 
 ## 데모 2개
 
