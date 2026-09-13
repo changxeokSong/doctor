@@ -27,7 +27,7 @@ EMB_MODEL_OPTIONS = {
     "KM-BERT (한국어 의료 특화, 약 99M)": "madatnlp/km-bert",
 }
 
-GLOSS_EXCEL = "corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx"
+GLOSS_EXCEL = "corpus/ETRI_KSL_Dictionary_r41_combined_955_20260909.xlsx"
 GLOSS_TOP_K = 10
 
 # (단계, 세부분류)별 주/보조 의미 부류 - 오프라인 1회 라벨링 결과를 고정해둔 것으로, 실행 중에는
