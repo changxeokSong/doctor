@@ -12,7 +12,7 @@ import pandas as pd
 
 from app.config import (
     CORPUS_EXCEL, EMB_MODEL_NAME, MIN_CANDIDATES_FOR_FILTER,
-    ORIGINAL_QUESTION_SOURCES, ORIGINAL_ANSWER_SOURCES,
+    ORIGINAL_QUESTION_SOURCES, ORIGINAL_ANSWER_SOURCES, CACHE_DIR,
 )
 from app.embedding import load_embedder, cache_suffix, prep_query, prep_passage
 
@@ -40,8 +40,8 @@ def load_corpus(model_name: str = EMB_MODEL_NAME):
     }
 
     embedder = load_embedder(model_name)
-    os.makedirs("./cache", exist_ok=True)
-    cache_path = f"./cache/corpus_question_embeddings__{cache_suffix(model_name)}.npy"
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"corpus_question_embeddings__{cache_suffix(model_name)}.npy")
     question_embeddings = np.load(cache_path) if os.path.exists(cache_path) else None
     if question_embeddings is None or question_embeddings.shape[0] != len(questions_df):
         question_embeddings = embedder.encode(

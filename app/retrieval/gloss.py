@@ -8,7 +8,7 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from app.config import GLOSS_EXCEL, EMB_MODEL_NAME, GLOSS_TOP_K
+from app.config import GLOSS_EXCEL, EMB_MODEL_NAME, GLOSS_TOP_K, CACHE_DIR
 from app.embedding import load_embedder, cache_suffix, prep_query, prep_passage
 
 
@@ -70,8 +70,8 @@ def build_gloss_synonym_embeddings(model_name: str = EMB_MODEL_NAME):
                 synonyms.append(key)
                 row_idx_of_syn.append(i)
                 seen_here.add(key)
-    os.makedirs("./cache", exist_ok=True)
-    cache_path = f"./cache/gloss_synonym_embeddings__{cache_suffix(model_name)}.npy"
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"gloss_synonym_embeddings__{cache_suffix(model_name)}.npy")
     syn_emb = np.load(cache_path) if os.path.exists(cache_path) else None
     if syn_emb is None or syn_emb.shape[0] != len(synonyms):
         syn_emb = embedder.encode(prep_passage(model_name, synonyms), normalize_embeddings=True, batch_size=64)

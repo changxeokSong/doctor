@@ -1,14 +1,19 @@
 """프로젝트 전역 경로/하이퍼파라미터 설정. 모든 모듈이 여기서 상수를 가져다 쓴다."""
 
-# models/deployed/ = 실제 서비스용, models/experiments/ = 미검증/폐기 실험 - 폴더로 분리해둠.
-MODEL_DIR = "./models/deployed/model_final"
+from pathlib import Path
 
-CORPUS_EXCEL = "corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx"
+# 프로젝트 루트 디렉터리 (doctor/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# models/deployed/ = 실제 서비스용, models/experiments/ = 미검증/폐기 실험 - 폴더로 분리해둠.
+MODEL_DIR = str(PROJECT_ROOT / "models" / "deployed" / "model_final")
+
+CORPUS_EXCEL = str(PROJECT_ROOT / "corpus" / "통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx")
 # 원본(비증강) 데이터 출처값 - 검색 코퍼스와 데이터셋 통계에서 "기존" 판정 기준.
 ORIGINAL_QUESTION_SOURCES = {"추가문진", "기존분리"}
 # "확장 예시"는 이름과 달리 LLM 증강이 아니라 사람이 쓴 원본 예시라 원본으로 취급한다.
 ORIGINAL_ANSWER_SOURCES = {"확장 예시", "기존 환자문장"}
-CLASSIFIER_TRAIN_EXCEL = "corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx"
+CLASSIFIER_TRAIN_EXCEL = str(PROJECT_ROOT / "corpus" / "통증의학과_모델입력_균형보강_학습준비본_0528.xlsx")
 CLASSIFIER_TRAIN_SHEET = "01_학습데이터_균형보강"
 EMB_MODEL_NAME = "snumin44/sap-bert-ko-en"
 MIN_CANDIDATES_FOR_FILTER = 1
@@ -27,8 +32,9 @@ EMB_MODEL_OPTIONS = {
     "KM-BERT (한국어 의료 특화, 약 99M)": "madatnlp/km-bert",
 }
 
-GLOSS_EXCEL = "corpus/ETRI_KSL_Dictionary_r41_combined_955_20260909.xlsx"
+GLOSS_EXCEL = str(PROJECT_ROOT / "corpus" / "ETRI_KSL_Dictionary_r41_combined_955_20260909.xlsx")
 GLOSS_TOP_K = 10
+CACHE_DIR = str(PROJECT_ROOT / "cache")
 
 # (단계, 세부분류)별 주/보조 의미 부류 - 오프라인 1회 라벨링 결과를 고정해둔 것으로, 실행 중에는
 # LLM을 호출하지 않는다. "-"는 특정 부류로 규정하기 애매한 경우(인사말/신원확인 등).
@@ -85,5 +91,5 @@ SUBCATEGORY_SEMANTIC_ROLES: dict[tuple[str, str], dict] = {
 }
 
 # 검증 전이라 models/deployed/가 아닌 experiments/ 백업 경로를 직접 가리킴.
-KEYWORD_MODEL_DIR = "./models/experiments/keyword_extractor_model_v2_deployed_until_20260725_backup"
+KEYWORD_MODEL_DIR = str(PROJECT_ROOT / "models" / "experiments" / "keyword_extractor_model_v2_deployed_until_20260725_backup")
 KEYWORD_MAX_LENGTH = 96
