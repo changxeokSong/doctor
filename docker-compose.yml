@@ -12,9 +12,7 @@ services:
       - ./cache/huggingface:/root/.cache/huggingface
       - ./logs:/srv/logs
       - ./backups:/srv/backups
-      - ./corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx:/srv/corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx
-      - ./corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx:/srv/corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx
-      - ./corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx:/srv/corpus/ETRI_KSL_Dictionary_r40_서강대658_20260725.xlsx
+      - ./corpus:/srv/corpus
       # 코드도 마운트 - runserver의 StatReloader가 변경을 감지해 재빌드 없이 hot-reload된다.
       - ./app:/srv/app
       - ./backend:/srv/backend
