@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-# 프로젝트 루트 디렉터리 (doctor/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # models/deployed/ = 실제 서비스용, models/experiments/ = 미검증/폐기 실험 - 폴더로 분리해둠.
