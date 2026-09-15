@@ -42,10 +42,7 @@ fi
 
 echo
 echo "=== 3. 재기동 ==="
-docker compose "${compose_files[@]}" up -d frontend
-if [ "$rebuild_backend" = "1" ]; then
-  docker compose "${compose_files[@]}" up -d backend
-fi
+docker compose "${compose_files[@]}" up -d
 
 echo
 echo "=== 완료 ==="
