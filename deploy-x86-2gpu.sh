@@ -12,7 +12,7 @@ missing=0
 for f in \
   "corpus/통증의학과_초진_의사문의_답변_키워드_이현_0528.xlsx" \
   "corpus/통증의학과_모델입력_균형보강_학습준비본_0528.xlsx" \
-  "corpus/ETRI_KSL_Dictionary_r41_combined_955_20260909.xlsx"
+  "corpus/ETRI_KSL_Dictionary_r41_combined_1107_20260915.xlsx"
 do
   if [ ! -f "$f" ]; then
     echo "  ✗ 없음: $f (git clone이 아니라 zip 등으로 일부만 받은 건 아닌지 확인할 것)"

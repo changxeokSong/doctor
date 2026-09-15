@@ -31,7 +31,7 @@ EMB_MODEL_OPTIONS = {
     "KM-BERT (한국어 의료 특화, 약 99M)": "madatnlp/km-bert",
 }
 
-GLOSS_EXCEL = str(PROJECT_ROOT / "corpus" / "ETRI_KSL_Dictionary_r41_combined_955_20260909.xlsx")
+GLOSS_EXCEL = str(PROJECT_ROOT / "corpus" / "ETRI_KSL_Dictionary_r41_combined_1107_20260915.xlsx")
 GLOSS_TOP_K = 10
 CACHE_DIR = str(PROJECT_ROOT / "cache")
 
